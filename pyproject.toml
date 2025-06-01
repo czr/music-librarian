@@ -1,0 +1,28 @@
+[project]
+name = "music-librarian"
+version = "0.1"
+description = "Music Librarian is CZR's opinionated music manager."
+readme = "README.md"
+authors = [{name = "Colin Z. Robertson"}]
+license = "MIT"
+requires-python = ">=3.13"
+classifiers = []
+dependencies = [
+    "click"
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.urls]
+Homepage = "https://github.com/czr/music-librarian"
+Changelog = "https://github.com/czr/music-librarian/releases"
+Issues = "https://github.com/czr/music-librarian/issues"
+CI = "https://github.com/czr/music-librarian/actions"
+
+[project.scripts]
+music-librarian = "music_librarian.cli:cli"
+
+[project.optional-dependencies]
+test = ["pytest"]
