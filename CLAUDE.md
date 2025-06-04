@@ -58,6 +58,12 @@ Based on the specification, the tool should implement:
 ### Current Status
 The CLI structure is scaffolded with a placeholder command. The actual transcoding functionality needs to be implemented per the detailed specification in `music_librarian_spec.md`.
 
+
+## Coding Guidelines
+
+- Follow PEP-8 conventions.
+- Format with black at the end of any set of edits.
+
 ## Testing Guidelines
 
 ### Test Data Setup

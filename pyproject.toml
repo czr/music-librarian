@@ -26,3 +26,4 @@ music-librarian = "music_librarian.cli:cli"
 
 [project.optional-dependencies]
 test = ["pytest"]
+dev = ["black"]
