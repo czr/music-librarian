@@ -57,3 +57,17 @@ Based on the specification, the tool should implement:
 
 ### Current Status
 The CLI structure is scaffolded with a placeholder command. The actual transcoding functionality needs to be implemented per the detailed specification in `music_librarian_spec.md`.
+
+## Testing Guidelines
+
+### Test Data Setup
+When writing tests, avoid setting up common representative data in shared setup routines (like `setUp` or `setup_method`). Instead, create test data on a per-test basis for these reasons:
+
+- **Edge case testing**: It's difficult to test edge cases (like "no data" or "malformed data") when you've already created representative data
+- **Test clarity**: Each test clearly shows exactly what data it needs to verify specific behavior
+- **Test independence**: Tests don't break when other tests change their data requirements
+
+**Best practices:**
+- Create helper functions to make data setup easy and clean within individual tests
+- Each test should create only the specific data it needs to verify the behavior being tested
+- Use descriptive test data that makes the test's intent clear
