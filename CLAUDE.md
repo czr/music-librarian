@@ -77,3 +77,7 @@ When writing tests, avoid setting up common representative data in shared setup 
 - Create helper functions to make data setup easy and clean within individual tests
 - Each test should create only the specific data it needs to verify the behavior being tested
 - Use descriptive test data that makes the test's intent clear
+
+## Project Memories
+
+- We're going to go test first for all features.
