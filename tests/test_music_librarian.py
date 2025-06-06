@@ -49,16 +49,13 @@ class TestTranscodeCLI:
             source_root = os.path.abspath("music_source")
             dest_root = os.path.abspath("music_dest")
             bad_source = os.path.abspath("other_location")
-            
+
             os.makedirs(source_root)
             os.makedirs(dest_root)
             os.makedirs(bad_source)
-            
-            env = {
-                "MUSIC_SOURCE_ROOT": source_root,
-                "MUSIC_DEST_ROOT": dest_root
-            }
-            
+
+            env = {"MUSIC_SOURCE_ROOT": source_root, "MUSIC_DEST_ROOT": dest_root}
+
             result = runner.invoke(cli, ["transcode", bad_source], env=env)
             assert result.exit_code == 1
             assert f"is not under MUSIC_SOURCE_ROOT" in result.output
@@ -70,15 +67,12 @@ class TestTranscodeCLI:
             source_root = os.path.abspath("music_source")
             dest_root = os.path.abspath("music_dest")
             album_dir = os.path.join(source_root, "artist", "album")
-            
+
             os.makedirs(album_dir)
             os.makedirs(dest_root)
-            
-            env = {
-                "MUSIC_SOURCE_ROOT": source_root,
-                "MUSIC_DEST_ROOT": dest_root
-            }
-            
+
+            env = {"MUSIC_SOURCE_ROOT": source_root, "MUSIC_DEST_ROOT": dest_root}
+
             result = runner.invoke(cli, ["transcode", album_dir], env=env)
             # Should not exit with error for validation
             assert "is not under MUSIC_SOURCE_ROOT" not in result.output
@@ -92,16 +86,13 @@ class TestTranscodeCLI:
             dest_root = os.path.abspath("music_dest")
             album1_dir = os.path.join(source_root, "artist1", "album1")
             album2_dir = os.path.join(source_root, "artist2", "album2")
-            
+
             os.makedirs(album1_dir)
             os.makedirs(album2_dir)
             os.makedirs(dest_root)
-            
-            env = {
-                "MUSIC_SOURCE_ROOT": source_root,
-                "MUSIC_DEST_ROOT": dest_root
-            }
-            
+
+            env = {"MUSIC_SOURCE_ROOT": source_root, "MUSIC_DEST_ROOT": dest_root}
+
             result = runner.invoke(cli, ["transcode", album1_dir, album2_dir], env=env)
             assert "is not under MUSIC_SOURCE_ROOT" not in result.output
             assert "environment variable not set" not in result.output
@@ -113,15 +104,12 @@ class TestTranscodeCLI:
             source_root = os.path.abspath("music_source")
             dest_root = os.path.abspath("music_dest")
             album_dir = os.path.join(source_root, "artist", "album")
-            
+
             os.makedirs(album_dir)
             os.makedirs(dest_root)
-            
-            env = {
-                "MUSIC_SOURCE_ROOT": source_root,
-                "MUSIC_DEST_ROOT": dest_root
-            }
-            
+
+            env = {"MUSIC_SOURCE_ROOT": source_root, "MUSIC_DEST_ROOT": dest_root}
+
             result = runner.invoke(cli, ["transcode", "--force", album_dir], env=env)
             assert "Force overwrite: True" in result.output
 
@@ -132,15 +120,12 @@ class TestTranscodeCLI:
             source_root = os.path.abspath("music_source")
             dest_root = os.path.abspath("music_dest")
             album_dir = os.path.join(source_root, "artist", "album")
-            
+
             os.makedirs(album_dir)
             os.makedirs(dest_root)
-            
-            env = {
-                "MUSIC_SOURCE_ROOT": source_root,
-                "MUSIC_DEST_ROOT": dest_root
-            }
-            
+
+            env = {"MUSIC_SOURCE_ROOT": source_root, "MUSIC_DEST_ROOT": dest_root}
+
             result = runner.invoke(cli, ["transcode", album_dir], env=env)
             assert "Force overwrite: False" in result.output
 
@@ -151,11 +136,11 @@ class TestPathResolution:
     def test_resolve_destination_path_single_level(self):
         """Test resolving destination path for single level directory."""
         from music_librarian.cli import resolve_destination_path
-        
+
         source_root = "/media/external/flac"
         dest_root = "/home/user/music/opus"
         source_dir = "/media/external/flac/artist"
-        
+
         expected = "/home/user/music/opus/artist"
         result = resolve_destination_path(source_dir, source_root, dest_root)
         assert result == expected
@@ -163,11 +148,11 @@ class TestPathResolution:
     def test_resolve_destination_path_nested(self):
         """Test resolving destination path for nested directories."""
         from music_librarian.cli import resolve_destination_path
-        
+
         source_root = "/media/external/flac"
         dest_root = "/home/user/music/opus"
         source_dir = "/media/external/flac/Pink Floyd/Dark Side of the Moon"
-        
+
         expected = "/home/user/music/opus/Pink Floyd/Dark Side of the Moon"
         result = resolve_destination_path(source_dir, source_root, dest_root)
         assert result == expected
@@ -175,11 +160,11 @@ class TestPathResolution:
     def test_resolve_destination_path_exact_root(self):
         """Test resolving destination path when source is exactly the root."""
         from music_librarian.cli import resolve_destination_path
-        
+
         source_root = "/media/external/flac"
         dest_root = "/home/user/music/opus"
         source_dir = "/media/external/flac"
-        
+
         expected = "/home/user/music/opus"
         result = resolve_destination_path(source_dir, source_root, dest_root)
         assert result == expected
@@ -187,11 +172,11 @@ class TestPathResolution:
     def test_resolve_destination_path_with_trailing_slashes(self):
         """Test path resolution handles trailing slashes correctly."""
         from music_librarian.cli import resolve_destination_path
-        
+
         source_root = "/media/external/flac/"
         dest_root = "/home/user/music/opus/"
         source_dir = "/media/external/flac/artist/album/"
-        
+
         expected = "/home/user/music/opus/artist/album"
         result = resolve_destination_path(source_dir, source_root, dest_root)
         assert result == expected
@@ -199,14 +184,14 @@ class TestPathResolution:
     def test_resolve_output_filename(self):
         """Test converting input filenames to output .opus filenames."""
         from music_librarian.cli import resolve_output_filename
-        
+
         test_cases = [
             ("track.flac", "track.opus"),
             ("song.wav", "song.opus"),
             ("01 - Title.flac", "01 - Title.opus"),
             ("nested/path/file.wav", "nested/path/file.opus"),
         ]
-        
+
         for input_file, expected in test_cases:
             result = resolve_output_filename(input_file)
             assert result == expected
@@ -218,28 +203,24 @@ class TestMetadataParsing:
     def test_parse_album_metadata_only(self):
         """Test parsing metadata.txt with only album-wide metadata."""
         from music_librarian.cli import parse_metadata_file
-        
+
         metadata_content = """title: TERROR 404
 artist: Perturbator
 date: 2012
 """
-        
+
         expected = {
-            "album": {
-                "title": "TERROR 404",
-                "artist": "Perturbator", 
-                "date": "2012"
-            },
-            "files": {}
+            "album": {"title": "TERROR 404", "artist": "Perturbator", "date": "2012"},
+            "files": {},
         }
-        
+
         result = parse_metadata_file(metadata_content)
         assert result == expected
 
     def test_parse_file_specific_metadata(self):
         """Test parsing metadata.txt with file-specific overrides."""
         from music_librarian.cli import parse_metadata_file
-        
+
         metadata_content = """title: TERROR 404
 artist: Perturbator
 date: 2012
@@ -253,33 +234,26 @@ artist: Perturbator & Guest
 track number: 02
 title: Mirage
 """
-        
+
         expected = {
-            "album": {
-                "title": "TERROR 404",
-                "artist": "Perturbator",
-                "date": "2012"
-            },
+            "album": {"title": "TERROR 404", "artist": "Perturbator", "date": "2012"},
             "files": {
-                "track1.flac": {
-                    "track number": "01",
-                    "title": "Opening Credits"
-                },
+                "track1.flac": {"track number": "01", "title": "Opening Credits"},
                 "track2.flac": {
                     "artist": "Perturbator & Guest",
-                    "track number": "02", 
-                    "title": "Mirage"
-                }
-            }
+                    "track number": "02",
+                    "title": "Mirage",
+                },
+            },
         }
-        
+
         result = parse_metadata_file(metadata_content)
         assert result == expected
 
     def test_parse_empty_values(self):
         """Test parsing metadata.txt with empty values."""
         from music_librarian.cli import parse_metadata_file
-        
+
         metadata_content = """title: 
 artist: Test Artist
 date: 2023
@@ -288,28 +262,19 @@ file: track1.flac:
 title:
 track number: 01
 """
-        
+
         expected = {
-            "album": {
-                "title": "",
-                "artist": "Test Artist",
-                "date": "2023"
-            },
-            "files": {
-                "track1.flac": {
-                    "title": "",
-                    "track number": "01"
-                }
-            }
+            "album": {"title": "", "artist": "Test Artist", "date": "2023"},
+            "files": {"track1.flac": {"title": "", "track number": "01"}},
         }
-        
+
         result = parse_metadata_file(metadata_content)
         assert result == expected
 
     def test_parse_with_whitespace(self):
         """Test parsing handles leading/trailing whitespace correctly."""
         from music_librarian.cli import parse_metadata_file
-        
+
         metadata_content = """  title:   Album Title   
 artist:Perturbator  
 date:  2012
@@ -318,51 +283,42 @@ file:  track1.flac  :
   title:  Track Title  
 track number:  01  
 """
-        
+
         expected = {
-            "album": {
-                "title": "Album Title",
-                "artist": "Perturbator",
-                "date": "2012"
-            },
-            "files": {
-                "track1.flac": {
-                    "title": "Track Title",
-                    "track number": "01"
-                }
-            }
+            "album": {"title": "Album Title", "artist": "Perturbator", "date": "2012"},
+            "files": {"track1.flac": {"title": "Track Title", "track number": "01"}},
         }
-        
+
         result = parse_metadata_file(metadata_content)
         assert result == expected
 
     def test_parse_case_sensitive_fields(self):
         """Test that field names are case-sensitive."""
         from music_librarian.cli import parse_metadata_file
-        
+
         metadata_content = """Title: Should Not Match
 title: Correct Title
 Artist: Should Not Match  
 artist: Correct Artist
 """
-        
+
         expected = {
             "album": {
                 "Title": "Should Not Match",
                 "title": "Correct Title",
                 "Artist": "Should Not Match",
-                "artist": "Correct Artist"
+                "artist": "Correct Artist",
             },
-            "files": {}
+            "files": {},
         }
-        
+
         result = parse_metadata_file(metadata_content)
         assert result == expected
 
     def test_parse_comments_and_empty_lines(self):
         """Test parsing ignores comments and empty lines."""
         from music_librarian.cli import parse_metadata_file
-        
+
         metadata_content = """# This is a comment
 title: Album Title
 # Another comment
@@ -375,27 +331,19 @@ title: Track Title
 track number: 01
 
 """
-        
+
         expected = {
-            "album": {
-                "title": "Album Title",
-                "artist": "Artist Name"
-            },
-            "files": {
-                "track1.flac": {
-                    "title": "Track Title",
-                    "track number": "01"
-                }
-            }
+            "album": {"title": "Album Title", "artist": "Artist Name"},
+            "files": {"track1.flac": {"title": "Track Title", "track number": "01"}},
         }
-        
+
         result = parse_metadata_file(metadata_content)
         assert result == expected
 
     def test_parse_malformed_file_section(self):
         """Test parsing handles malformed file sections gracefully."""
         from music_librarian.cli import parse_metadata_file
-        
+
         metadata_content = """title: Album Title
 
 file: missing_colon_at_end
@@ -404,35 +352,29 @@ title: This should not be parsed
 file: correct_file.flac:
 title: This should be parsed
 """
-        
+
         expected = {
-            "album": {
-                "title": "Album Title"
-            },
-            "files": {
-                "correct_file.flac": {
-                    "title": "This should be parsed"
-                }
-            }
+            "album": {"title": "Album Title"},
+            "files": {"correct_file.flac": {"title": "This should be parsed"}},
         }
-        
+
         result = parse_metadata_file(metadata_content)
         assert result == expected
 
     def test_validate_files_exist(self):
         """Test validation that files referenced in metadata.txt exist."""
         from music_librarian.cli import validate_metadata_files
-        
+
         metadata = {
             "album": {"title": "Test Album"},
             "files": {
                 "existing.flac": {"title": "Track 1"},
-                "missing.flac": {"title": "Track 2"}
-            }
+                "missing.flac": {"title": "Track 2"},
+            },
         }
-        
+
         available_files = ["existing.flac", "other.wav"]
-        
+
         # Should raise error for missing file
         with pytest.raises(ValueError, match="missing.flac"):
             validate_metadata_files(metadata, available_files)
@@ -440,17 +382,17 @@ title: This should be parsed
     def test_validate_files_all_exist(self):
         """Test validation passes when all files exist."""
         from music_librarian.cli import validate_metadata_files
-        
+
         metadata = {
             "album": {"title": "Test Album"},
             "files": {
                 "track1.flac": {"title": "Track 1"},
-                "track2.wav": {"title": "Track 2"}
-            }
+                "track2.wav": {"title": "Track 2"},
+            },
         }
-        
+
         available_files = ["track1.flac", "track2.wav", "extra.flac"]
-        
+
         # Should not raise any error
         validate_metadata_files(metadata, available_files)
 
@@ -461,21 +403,16 @@ class TestCoverArt:
     def test_find_cover_art_basic_patterns(self):
         """Test finding cover art files with basic naming patterns."""
         from music_librarian.cli import find_cover_art
-        
-        available_files = [
-            "track1.flac",
-            "track2.flac", 
-            "cover.jpg",
-            "readme.txt"
-        ]
-        
+
+        available_files = ["track1.flac", "track2.flac", "cover.jpg", "readme.txt"]
+
         result = find_cover_art(available_files)
         assert result == "cover.jpg"
 
     def test_find_cover_art_case_insensitive(self):
         """Test case-insensitive cover art detection."""
         from music_librarian.cli import find_cover_art
-        
+
         test_cases = [
             (["COVER.JPG", "track.flac"], "COVER.JPG"),
             (["Cover.jpg", "track.flac"], "Cover.jpg"),
@@ -483,7 +420,7 @@ class TestCoverArt:
             (["front.JPEG", "track.flac"], "front.JPEG"),
             (["Album.webp", "track.flac"], "Album.webp"),
         ]
-        
+
         for files, expected in test_cases:
             result = find_cover_art(files)
             assert result == expected
@@ -491,21 +428,21 @@ class TestCoverArt:
     def test_find_cover_art_multiple_candidates(self):
         """Test that first matching cover art file is returned."""
         from music_librarian.cli import find_cover_art
-        
+
         available_files = [
             "track1.flac",
             "cover.jpg",  # Should be found first
             "folder.png",
-            "front.jpeg"
+            "front.jpeg",
         ]
-        
+
         result = find_cover_art(available_files)
         assert result == "cover.jpg"
 
     def test_find_cover_art_different_extensions(self):
         """Test finding cover art with different supported extensions."""
         from music_librarian.cli import find_cover_art
-        
+
         test_cases = [
             (["cover.jpg"], "cover.jpg"),
             (["cover.jpeg"], "cover.jpeg"),
@@ -513,7 +450,7 @@ class TestCoverArt:
             (["cover.gif"], "cover.gif"),
             (["cover.webp"], "cover.webp"),
         ]
-        
+
         for files, expected in test_cases:
             result = find_cover_art(files)
             assert result == expected
@@ -521,43 +458,34 @@ class TestCoverArt:
     def test_find_cover_art_no_match(self):
         """Test behavior when no cover art files are found."""
         from music_librarian.cli import find_cover_art
-        
-        available_files = [
-            "track1.flac",
-            "track2.wav",
-            "metadata.txt",
-            "readme.txt"
-        ]
-        
+
+        available_files = ["track1.flac", "track2.wav", "metadata.txt", "readme.txt"]
+
         result = find_cover_art(available_files)
         assert result is None
 
     def test_find_cover_art_priority_order(self):
         """Test that cover art files are found in priority order."""
         from music_librarian.cli import find_cover_art
-        
+
         # Based on the spec: cover, folder, front, album
         available_files = [
-            "album.jpg",    # Lower priority
-            "front.jpg",    # Medium priority  
-            "folder.jpg",   # High priority
-            "cover.jpg",    # Highest priority
-            "track.flac"
+            "album.jpg",  # Lower priority
+            "front.jpg",  # Medium priority
+            "folder.jpg",  # High priority
+            "cover.jpg",  # Highest priority
+            "track.flac",
         ]
-        
+
         result = find_cover_art(available_files)
         assert result == "cover.jpg"
 
     def test_find_cover_art_without_audio_files(self):
         """Test finding cover art in directory without audio files."""
         from music_librarian.cli import find_cover_art
-        
-        available_files = [
-            "cover.jpg",
-            "readme.txt",
-            "metadata.txt"
-        ]
-        
+
+        available_files = ["cover.jpg", "readme.txt", "metadata.txt"]
+
         result = find_cover_art(available_files)
         assert result == "cover.jpg"
 
@@ -568,43 +496,40 @@ class TestOpusencIntegration:
     def test_build_opusenc_command_basic(self):
         """Test building basic opusenc command without metadata overrides."""
         from music_librarian.cli import build_opusenc_command
-        
+
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
-        
+
         result = build_opusenc_command(input_file, output_file)
-        
-        expected = [
-            "opusenc",
-            "/source/track.flac",
-            "/dest/track.opus"
-        ]
-        
+
+        expected = ["opusenc", "/source/track.flac", "/dest/track.opus"]
+
         assert result == expected
 
     def test_build_opusenc_command_with_quality(self):
         """Test building opusenc command with quality setting."""
         from music_librarian.cli import build_opusenc_command
-        
+
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
         quality = "192"
-        
+
         result = build_opusenc_command(input_file, output_file, quality=quality)
-        
+
         expected = [
             "opusenc",
-            "--bitrate", "192",
+            "--bitrate",
+            "192",
             "/source/track.flac",
-            "/dest/track.opus"
+            "/dest/track.opus",
         ]
-        
+
         assert result == expected
 
     def test_build_opusenc_command_with_metadata(self):
         """Test building opusenc command with metadata overrides."""
         from music_librarian.cli import build_opusenc_command
-        
+
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
         metadata = {
@@ -612,154 +537,148 @@ class TestOpusencIntegration:
             "artist": "Artist Name",
             "album": "Album Title",
             "date": "2023",
-            "track number": "01"
+            "track number": "01",
         }
-        
+
         result = build_opusenc_command(input_file, output_file, metadata=metadata)
-        
+
         expected = [
             "opusenc",
-            "--comment", "TITLE=Track Title",
-            "--comment", "ARTIST=Artist Name", 
-            "--comment", "ALBUM=Album Title",
-            "--comment", "DATE=2023",
-            "--comment", "TRACKNUMBER=01",
+            "--comment",
+            "TITLE=Track Title",
+            "--comment",
+            "ARTIST=Artist Name",
+            "--comment",
+            "ALBUM=Album Title",
+            "--comment",
+            "DATE=2023",
+            "--comment",
+            "TRACKNUMBER=01",
             "/source/track.flac",
-            "/dest/track.opus"
+            "/dest/track.opus",
         ]
-        
+
         assert result == expected
 
     def test_build_opusenc_command_with_quality_and_metadata(self):
         """Test building opusenc command with both quality and metadata."""
         from music_librarian.cli import build_opusenc_command
-        
+
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
         quality = "128"
-        metadata = {
-            "title": "Test Track",
-            "artist": "Test Artist"
-        }
-        
-        result = build_opusenc_command(input_file, output_file, quality=quality, metadata=metadata)
-        
+        metadata = {"title": "Test Track", "artist": "Test Artist"}
+
+        result = build_opusenc_command(
+            input_file, output_file, quality=quality, metadata=metadata
+        )
+
         expected = [
             "opusenc",
-            "--bitrate", "128",
-            "--comment", "TITLE=Test Track",
-            "--comment", "ARTIST=Test Artist",
+            "--bitrate",
+            "128",
+            "--comment",
+            "TITLE=Test Track",
+            "--comment",
+            "ARTIST=Test Artist",
             "/source/track.flac",
-            "/dest/track.opus"
+            "/dest/track.opus",
         ]
-        
+
         assert result == expected
 
     def test_build_opusenc_command_empty_metadata_values(self):
         """Test building opusenc command with empty metadata values."""
         from music_librarian.cli import build_opusenc_command
-        
+
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
-        metadata = {
-            "title": "",
-            "artist": "Artist Name"
-        }
-        
+        metadata = {"title": "", "artist": "Artist Name"}
+
         result = build_opusenc_command(input_file, output_file, metadata=metadata)
-        
+
         expected = [
             "opusenc",
-            "--comment", "TITLE=",
-            "--comment", "ARTIST=Artist Name",
+            "--comment",
+            "TITLE=",
+            "--comment",
+            "ARTIST=Artist Name",
             "/source/track.flac",
-            "/dest/track.opus"
+            "/dest/track.opus",
         ]
-        
+
         assert result == expected
 
     def test_check_opusenc_available(self):
         """Test checking if opusenc is available in PATH."""
         from music_librarian.cli import check_external_tools
-        
+
         # Should not raise an exception since opusenc is available
         check_external_tools()
 
     def test_merge_metadata_album_only(self):
         """Test merging album metadata without file-specific overrides."""
         from music_librarian.cli import merge_metadata
-        
+
         album_metadata = {
             "title": "Album Title",
             "artist": "Album Artist",
-            "date": "2023"
+            "date": "2023",
         }
-        
+
         file_metadata = {}
         filename = "track.flac"
-        
+
         result = merge_metadata(album_metadata, file_metadata, filename)
-        
-        expected = {
-            "album": "Album Title",
-            "artist": "Album Artist",
-            "date": "2023"
-        }
-        
+
+        expected = {"album": "Album Title", "artist": "Album Artist", "date": "2023"}
+
         assert result == expected
 
     def test_merge_metadata_with_file_overrides(self):
         """Test merging metadata with file-specific overrides."""
         from music_librarian.cli import merge_metadata
-        
+
         album_metadata = {
             "title": "Album Title",
             "artist": "Album Artist",
-            "date": "2023"
+            "date": "2023",
         }
-        
-        file_metadata = {
-            "title": "Track Title",
-            "track number": "01"
-        }
-        
+
+        file_metadata = {"title": "Track Title", "track number": "01"}
+
         filename = "track.flac"
-        
+
         result = merge_metadata(album_metadata, file_metadata, filename)
-        
+
         expected = {
             "album": "Album Title",
             "artist": "Album Artist",  # Album artist preserved
             "date": "2023",
-            "title": "Track Title",    # Overridden by file metadata
-            "track number": "01"
+            "title": "Track Title",  # Overridden by file metadata
+            "track number": "01",
         }
-        
+
         assert result == expected
 
     def test_merge_metadata_artist_override_preserves_album_artist(self):
         """Test that overriding artist preserves album artist."""
         from music_librarian.cli import merge_metadata
-        
-        album_metadata = {
-            "title": "Album Title",
-            "artist": "Album Artist"
-        }
-        
-        file_metadata = {
-            "artist": "Track Artist"
-        }
-        
+
+        album_metadata = {"title": "Album Title", "artist": "Album Artist"}
+
+        file_metadata = {"artist": "Track Artist"}
+
         filename = "track.flac"
-        
+
         result = merge_metadata(album_metadata, file_metadata, filename)
-        
+
         expected = {
             "album": "Album Title",
-            "artist": "Track Artist",     # Overridden
-            "albumartist": "Album Artist" # Preserved from album
+            "artist": "Track Artist",  # Overridden
+            "albumartist": "Album Artist",  # Preserved from album
         }
-        
+
         assert result == expected
 
 
@@ -769,23 +688,19 @@ class TestReplayGainIntegration:
     def test_build_rsgain_command(self):
         """Test building rsgain command for directory processing."""
         from music_librarian.cli import build_rsgain_command
-        
+
         directory = "/dest/album"
-        
+
         result = build_rsgain_command(directory)
-        
-        expected = [
-            "rsgain", 
-            "easy",
-            "/dest/album"
-        ]
-        
+
+        expected = ["rsgain", "easy", "/dest/album"]
+
         assert result == expected
 
     def test_check_rsgain_available(self):
         """Test checking if rsgain is available in PATH."""
         from music_librarian.cli import check_external_tools
-        
+
         # Should not raise an exception since rsgain is available
         check_external_tools()
 
@@ -796,7 +711,7 @@ class TestTranscodeWorkflow:
     def test_process_directory_basic(self):
         """Test processing a directory with FLAC files."""
         from music_librarian.cli import process_directory
-        
+
         # This test requires actual implementation to verify workflow
         # For now, test that the function exists and can be called
         try:
@@ -807,11 +722,11 @@ class TestTranscodeWorkflow:
     def test_get_opus_quality_from_env(self):
         """Test reading OPUS_QUALITY from environment variable."""
         from music_librarian.cli import get_opus_quality
-        
+
         # Test default quality when env var not set
         quality = get_opus_quality()
         assert quality is not None  # Should have a reasonable default
-        
+
         # Test reading from environment (would need to mock os.environ)
         # This is a placeholder for the actual implementation
 
