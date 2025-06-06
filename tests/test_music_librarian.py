@@ -562,6 +562,260 @@ class TestCoverArt:
         assert result == "cover.jpg"
 
 
+class TestOpusencIntegration:
+    """Tests for opusenc transcoding integration."""
+
+    def test_build_opusenc_command_basic(self):
+        """Test building basic opusenc command without metadata overrides."""
+        from music_librarian.cli import build_opusenc_command
+        
+        input_file = "/source/track.flac"
+        output_file = "/dest/track.opus"
+        
+        result = build_opusenc_command(input_file, output_file)
+        
+        expected = [
+            "opusenc",
+            "/source/track.flac",
+            "/dest/track.opus"
+        ]
+        
+        assert result == expected
+
+    def test_build_opusenc_command_with_quality(self):
+        """Test building opusenc command with quality setting."""
+        from music_librarian.cli import build_opusenc_command
+        
+        input_file = "/source/track.flac"
+        output_file = "/dest/track.opus"
+        quality = "192"
+        
+        result = build_opusenc_command(input_file, output_file, quality=quality)
+        
+        expected = [
+            "opusenc",
+            "--bitrate", "192",
+            "/source/track.flac",
+            "/dest/track.opus"
+        ]
+        
+        assert result == expected
+
+    def test_build_opusenc_command_with_metadata(self):
+        """Test building opusenc command with metadata overrides."""
+        from music_librarian.cli import build_opusenc_command
+        
+        input_file = "/source/track.flac"
+        output_file = "/dest/track.opus"
+        metadata = {
+            "title": "Track Title",
+            "artist": "Artist Name",
+            "album": "Album Title",
+            "date": "2023",
+            "track number": "01"
+        }
+        
+        result = build_opusenc_command(input_file, output_file, metadata=metadata)
+        
+        expected = [
+            "opusenc",
+            "--comment", "TITLE=Track Title",
+            "--comment", "ARTIST=Artist Name", 
+            "--comment", "ALBUM=Album Title",
+            "--comment", "DATE=2023",
+            "--comment", "TRACKNUMBER=01",
+            "/source/track.flac",
+            "/dest/track.opus"
+        ]
+        
+        assert result == expected
+
+    def test_build_opusenc_command_with_quality_and_metadata(self):
+        """Test building opusenc command with both quality and metadata."""
+        from music_librarian.cli import build_opusenc_command
+        
+        input_file = "/source/track.flac"
+        output_file = "/dest/track.opus"
+        quality = "128"
+        metadata = {
+            "title": "Test Track",
+            "artist": "Test Artist"
+        }
+        
+        result = build_opusenc_command(input_file, output_file, quality=quality, metadata=metadata)
+        
+        expected = [
+            "opusenc",
+            "--bitrate", "128",
+            "--comment", "TITLE=Test Track",
+            "--comment", "ARTIST=Test Artist",
+            "/source/track.flac",
+            "/dest/track.opus"
+        ]
+        
+        assert result == expected
+
+    def test_build_opusenc_command_empty_metadata_values(self):
+        """Test building opusenc command with empty metadata values."""
+        from music_librarian.cli import build_opusenc_command
+        
+        input_file = "/source/track.flac"
+        output_file = "/dest/track.opus"
+        metadata = {
+            "title": "",
+            "artist": "Artist Name"
+        }
+        
+        result = build_opusenc_command(input_file, output_file, metadata=metadata)
+        
+        expected = [
+            "opusenc",
+            "--comment", "TITLE=",
+            "--comment", "ARTIST=Artist Name",
+            "/source/track.flac",
+            "/dest/track.opus"
+        ]
+        
+        assert result == expected
+
+    def test_check_opusenc_available(self):
+        """Test checking if opusenc is available in PATH."""
+        from music_librarian.cli import check_external_tools
+        
+        # Should not raise an exception since opusenc is available
+        check_external_tools()
+
+    def test_merge_metadata_album_only(self):
+        """Test merging album metadata without file-specific overrides."""
+        from music_librarian.cli import merge_metadata
+        
+        album_metadata = {
+            "title": "Album Title",
+            "artist": "Album Artist",
+            "date": "2023"
+        }
+        
+        file_metadata = {}
+        filename = "track.flac"
+        
+        result = merge_metadata(album_metadata, file_metadata, filename)
+        
+        expected = {
+            "album": "Album Title",
+            "artist": "Album Artist",
+            "date": "2023"
+        }
+        
+        assert result == expected
+
+    def test_merge_metadata_with_file_overrides(self):
+        """Test merging metadata with file-specific overrides."""
+        from music_librarian.cli import merge_metadata
+        
+        album_metadata = {
+            "title": "Album Title",
+            "artist": "Album Artist",
+            "date": "2023"
+        }
+        
+        file_metadata = {
+            "title": "Track Title",
+            "track number": "01"
+        }
+        
+        filename = "track.flac"
+        
+        result = merge_metadata(album_metadata, file_metadata, filename)
+        
+        expected = {
+            "album": "Album Title",
+            "artist": "Album Artist",  # Album artist preserved
+            "date": "2023",
+            "title": "Track Title",    # Overridden by file metadata
+            "track number": "01"
+        }
+        
+        assert result == expected
+
+    def test_merge_metadata_artist_override_preserves_album_artist(self):
+        """Test that overriding artist preserves album artist."""
+        from music_librarian.cli import merge_metadata
+        
+        album_metadata = {
+            "title": "Album Title",
+            "artist": "Album Artist"
+        }
+        
+        file_metadata = {
+            "artist": "Track Artist"
+        }
+        
+        filename = "track.flac"
+        
+        result = merge_metadata(album_metadata, file_metadata, filename)
+        
+        expected = {
+            "album": "Album Title",
+            "artist": "Track Artist",     # Overridden
+            "albumartist": "Album Artist" # Preserved from album
+        }
+        
+        assert result == expected
+
+
+class TestReplayGainIntegration:
+    """Tests for ReplayGain processing with rsgain."""
+
+    def test_build_rsgain_command(self):
+        """Test building rsgain command for directory processing."""
+        from music_librarian.cli import build_rsgain_command
+        
+        directory = "/dest/album"
+        
+        result = build_rsgain_command(directory)
+        
+        expected = [
+            "rsgain", 
+            "easy",
+            "/dest/album"
+        ]
+        
+        assert result == expected
+
+    def test_check_rsgain_available(self):
+        """Test checking if rsgain is available in PATH."""
+        from music_librarian.cli import check_external_tools
+        
+        # Should not raise an exception since rsgain is available
+        check_external_tools()
+
+
+class TestTranscodeWorkflow:
+    """Integration tests for complete transcoding workflow."""
+
+    def test_process_directory_basic(self):
+        """Test processing a directory with FLAC files."""
+        from music_librarian.cli import process_directory
+        
+        # This test requires actual implementation to verify workflow
+        # For now, test that the function exists and can be called
+        try:
+            from music_librarian.cli import process_directory
+        except ImportError:
+            pytest.fail("process_directory function not implemented")
+
+    def test_get_opus_quality_from_env(self):
+        """Test reading OPUS_QUALITY from environment variable."""
+        from music_librarian.cli import get_opus_quality
+        
+        # Test default quality when env var not set
+        quality = get_opus_quality()
+        assert quality is not None  # Should have a reasonable default
+        
+        # Test reading from environment (would need to mock os.environ)
+        # This is a placeholder for the actual implementation
+
+
 class TestFileDiscovery:
     """Tests for file discovery functionality."""
 
