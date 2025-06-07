@@ -17,34 +17,34 @@ def test_version():
         assert result.output.startswith("cli, version ")
 
 
-class TestTranscodeCLI:
-    """Tests for the transcode command CLI interface."""
+class TestExportCLI:
+    """Tests for the export command CLI interface."""
 
-    def test_transcode_requires_source_directory(self):
-        """Test that transcode command requires at least one source directory."""
+    def test_export_requires_source_directory(self):
+        """Test that export command requires at least one source directory."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["transcode"])
+        result = runner.invoke(cli, ["export"])
         assert result.exit_code != 0
         assert "Missing argument" in result.output
 
-    def test_transcode_missing_source_root_env(self):
-        """Test that transcode fails when MUSIC_SOURCE_ROOT is not set."""
+    def test_export_missing_source_root_env(self):
+        """Test that export fails when MUSIC_SOURCE_ROOT is not set."""
         runner = CliRunner()
         env = {"MUSIC_DEST_ROOT": "/dest"}
-        result = runner.invoke(cli, ["transcode", "/some/path"], env=env)
+        result = runner.invoke(cli, ["export", "/some/path"], env=env)
         assert result.exit_code == 1
         assert "MUSIC_SOURCE_ROOT environment variable not set" in result.output
 
-    def test_transcode_missing_dest_root_env(self):
-        """Test that transcode fails when MUSIC_DEST_ROOT is not set."""
+    def test_export_missing_dest_root_env(self):
+        """Test that export fails when MUSIC_DEST_ROOT is not set."""
         runner = CliRunner()
         env = {"MUSIC_SOURCE_ROOT": "/source"}
-        result = runner.invoke(cli, ["transcode", "/some/path"], env=env)
+        result = runner.invoke(cli, ["export", "/some/path"], env=env)
         assert result.exit_code == 1
         assert "MUSIC_DEST_ROOT environment variable not set" in result.output
 
-    def test_transcode_source_not_under_root(self):
-        """Test that transcode fails when source directory is not under MUSIC_SOURCE_ROOT."""
+    def test_export_source_not_under_root(self):
+        """Test that export fails when source directory is not under MUSIC_SOURCE_ROOT."""
         runner = CliRunner()
         with runner.isolated_filesystem():
             source_root = os.path.abspath("music_source")
@@ -57,12 +57,12 @@ class TestTranscodeCLI:
 
             env = {"MUSIC_SOURCE_ROOT": source_root, "MUSIC_DEST_ROOT": dest_root}
 
-            result = runner.invoke(cli, ["transcode", bad_source], env=env)
+            result = runner.invoke(cli, ["export", bad_source], env=env)
             assert result.exit_code == 1
             assert f"is not under MUSIC_SOURCE_ROOT" in result.output
 
-    def test_transcode_valid_single_directory(self):
-        """Test that transcode accepts valid single source directory."""
+    def test_export_valid_single_directory(self):
+        """Test that export accepts valid single source directory."""
         runner = CliRunner()
         with runner.isolated_filesystem():
             source_root = os.path.abspath("music_source")
@@ -74,13 +74,13 @@ class TestTranscodeCLI:
 
             env = {"MUSIC_SOURCE_ROOT": source_root, "MUSIC_DEST_ROOT": dest_root}
 
-            result = runner.invoke(cli, ["transcode", album_dir], env=env)
+            result = runner.invoke(cli, ["export", album_dir], env=env)
             # Should not exit with error for validation
             assert "is not under MUSIC_SOURCE_ROOT" not in result.output
             assert "environment variable not set" not in result.output
 
-    def test_transcode_valid_multiple_directories(self):
-        """Test that transcode accepts multiple valid source directories."""
+    def test_export_valid_multiple_directories(self):
+        """Test that export accepts multiple valid source directories."""
         runner = CliRunner()
         with runner.isolated_filesystem():
             source_root = os.path.abspath("music_source")
@@ -94,11 +94,11 @@ class TestTranscodeCLI:
 
             env = {"MUSIC_SOURCE_ROOT": source_root, "MUSIC_DEST_ROOT": dest_root}
 
-            result = runner.invoke(cli, ["transcode", album1_dir, album2_dir], env=env)
+            result = runner.invoke(cli, ["export", album1_dir, album2_dir], env=env)
             assert "is not under MUSIC_SOURCE_ROOT" not in result.output
             assert "environment variable not set" not in result.output
 
-    def test_transcode_force_flag(self):
+    def test_export_force_flag(self):
         """Test that --force flag is properly parsed."""
         runner = CliRunner()
         with runner.isolated_filesystem():
@@ -111,10 +111,10 @@ class TestTranscodeCLI:
 
             env = {"MUSIC_SOURCE_ROOT": source_root, "MUSIC_DEST_ROOT": dest_root}
 
-            result = runner.invoke(cli, ["transcode", "--force", album_dir], env=env)
+            result = runner.invoke(cli, ["export", "--force", album_dir], env=env)
             assert "Force overwrite: True" in result.output
 
-    def test_transcode_no_force_flag(self):
+    def test_export_no_force_flag(self):
         """Test default behavior without --force flag."""
         runner = CliRunner()
         with runner.isolated_filesystem():
@@ -127,7 +127,7 @@ class TestTranscodeCLI:
 
             env = {"MUSIC_SOURCE_ROOT": source_root, "MUSIC_DEST_ROOT": dest_root}
 
-            result = runner.invoke(cli, ["transcode", album_dir], env=env)
+            result = runner.invoke(cli, ["export", album_dir], env=env)
             assert "Force overwrite: False" in result.output
 
 
@@ -706,8 +706,8 @@ class TestReplayGainIntegration:
         check_external_tools()
 
 
-class TestTranscodeWorkflow:
-    """Integration tests for complete transcoding workflow."""
+class TestExportWorkflow:
+    """Integration tests for complete export workflow."""
 
     def create_test_flac_file(self, filepath):
         """Create a minimal test FLAC file using ffmpeg."""

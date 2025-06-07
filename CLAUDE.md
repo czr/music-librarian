@@ -49,14 +49,14 @@ music-librarian --help
 
 ### Expected Implementation
 Based on the specification, the tool should implement:
-- `transcode` command for FLAC/WAV to Opus conversion
+- `export` command for mixed audio format processing (FLAC/WAV to Opus, lossy file copying)
 - Environment variable configuration (`MUSIC_SOURCE_ROOT`, `MUSIC_DEST_ROOT`, `OPUS_QUALITY`)
 - Metadata override processing from `metadata.txt` files
 - Cover art copying with case-insensitive pattern matching
 - ReplayGain tag generation using rsgain
 
 ### Current Status
-The CLI structure is scaffolded with a placeholder command. The actual transcoding functionality needs to be implemented per the detailed specification in `music_librarian_spec.md`.
+The CLI structure includes a fully implemented `export` command that handles mixed audio format processing per the detailed specification in `music_librarian_spec.md`.
 
 
 ## Coding Guidelines

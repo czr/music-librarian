@@ -12,7 +12,7 @@ def cli():
     "Music Librarian is CZR's opinionated music manager."
 
 
-@cli.command(name="transcode")
+@cli.command(name="export")
 @click.argument("source_directories", nargs=-1, required=True)
 @click.option(
     "-f",
@@ -20,8 +20,8 @@ def cli():
     is_flag=True,
     help="Overwrite existing files in destination",
 )
-def transcode(source_directories, force):
-    """Transcode FLAC/WAV files from source collection to destination collection."""
+def export(source_directories, force):
+    """Export audio files from source collection to destination collection."""
     # Validate environment variables
     source_root = os.environ.get("MUSIC_SOURCE_ROOT")
     dest_root = os.environ.get("MUSIC_DEST_ROOT")
@@ -46,7 +46,7 @@ def transcode(source_directories, force):
             )
             sys.exit(1)
 
-    click.echo(f"Transcoding {len(source_directories)} directories...")
+    click.echo(f"Exporting {len(source_directories)} directories...")
     click.echo(f"Source root: {source_root}")
     click.echo(f"Destination root: {dest_root}")
     click.echo(f"Force overwrite: {force}")

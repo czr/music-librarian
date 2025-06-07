@@ -23,7 +23,7 @@ A Python command-line tool for processing music collections. The tool transcodes
 
 ## Command Line Interface
 
-There is currently only one command, `transcode`, but it is expected that more will be added later.
+There is currently only one command, `export`, but it is expected that more will be added later.
 
 ### Usage
 ```bash
@@ -32,7 +32,7 @@ music-librarian <command> <source_directory> [source_directory ...] [options]
 
 ### Commands
 
-- `transcode`: process audio files from source collection to destination collection (transcode lossless to Opus, copy lossy files).
+- `export`: export audio files from source collection to destination collection (transcode lossless to Opus, copy lossy files).
 
 ### Arguments
 - `source_directory`: One or more paths to directories containing audio files to process (must be under `MUSIC_SOURCE_ROOT`)
@@ -46,14 +46,14 @@ music-librarian <command> <source_directory> [source_directory ...] [options]
 export MUSIC_SOURCE_ROOT=/media/external/music
 export MUSIC_DEST_ROOT=/home/user/music/processed
 
-# Process an album (mix of FLAC and MP3 files)
-music-librarian transcode /media/external/music/Pink\ Floyd/Dark\ Side\ of\ the\ Moon/
+# Export an album (mix of FLAC and MP3 files)
+music-librarian export /media/external/music/Pink\ Floyd/Dark\ Side\ of\ the\ Moon/
 
-# Process multiple albums at once
-music-librarian transcode /media/external/music/Pink\ Floyd/Dark\ Side\ of\ the\ Moon/ /media/external/music/Led\ Zeppelin/IV/
+# Export multiple albums at once
+music-librarian export /media/external/music/Pink\ Floyd/Dark\ Side\ of\ the\ Moon/ /media/external/music/Led\ Zeppelin/IV/
 
-# Process all albums for a single artist
-music-librarian transcode /media/external/music/Pink\ Floyd/
+# Export all albums for a single artist
+music-librarian export /media/external/music/Pink\ Floyd/
 ```
 
 ### Processing Behavior Examples
@@ -81,7 +81,7 @@ All processed files (both transcoded and copied) will have ReplayGain tags appli
 ```
 MUSIC_SOURCE_ROOT=/media/external/flac
 MUSIC_DEST_ROOT=/home/user/music/opus
-transcode /media/external/flac/Pink Floyd/Dark Side of the Moon/
+export /media/external/flac/Pink Floyd/Dark Side of the Moon/
 → Creates/uses /home/user/music/opus/Pink Floyd/Dark Side of the Moon/
 ```
 
