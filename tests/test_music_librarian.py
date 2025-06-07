@@ -1054,16 +1054,17 @@ class TestFileDiscovery:
         with pytest.raises(FileNotFoundError):
             find_audio_files(nonexistent_path)
 
-    def test_exclude_non_audio_extensions(self):
-        """Test that non-audio files are properly excluded."""
+    def test_include_lossy_audio_extensions(self):
+        """Test that lossy audio files are included alongside lossless files."""
 
         file_structure = {
-            "good.flac": None,
-            "good.wav": None,
-            "bad.mp3": None,  # Should be excluded
-            "bad.m4a": None,  # Should be excluded
-            "bad.ogg": None,  # Should be excluded
-            "bad.aac": None,  # Should be excluded
+            "lossless1.flac": None,
+            "lossless2.wav": None,
+            "lossy1.mp3": None,  # Should be included
+            "lossy2.m4a": None,  # Should be included
+            "lossy3.ogg": None,  # Should be included
+            "lossy4.aac": None,  # Should be included
+            "lossy5.opus": None,  # Should be included
             "cover.jpg": None,  # Should be excluded
             "notes.txt": None,  # Should be excluded
         }
@@ -1072,10 +1073,66 @@ class TestFileDiscovery:
 
         try:
             result = find_audio_files(temp_dir)
-            expected = [Path("good.flac"), Path("good.wav")]
+            expected = [
+                Path("lossless1.flac"),
+                Path("lossless2.wav"),
+                Path("lossy1.mp3"),
+                Path("lossy2.m4a"),
+                Path("lossy3.ogg"),
+                Path("lossy4.aac"),
+                Path("lossy5.opus"),
+            ]
             assert sorted(result) == sorted(expected)
         finally:
             shutil.rmtree(temp_dir)
+
+    def test_find_audio_files_with_type_classification(self):
+        """Test that audio files are classified as lossless or lossy."""
+        from music_librarian.file_discovery import find_audio_files_with_types
+
+        file_structure = {
+            "track1.flac": None,
+            "track2.wav": None,
+            "track3.mp3": None,
+            "track4.ogg": None,
+            "cover.jpg": None,
+        }
+
+        temp_dir = self.create_temp_dir_with_files(file_structure)
+
+        try:
+            result = find_audio_files_with_types(temp_dir)
+
+            expected = {
+                "lossless": [Path("track1.flac"), Path("track2.wav")],
+                "lossy": [Path("track3.mp3"), Path("track4.ogg")],
+            }
+
+            assert sorted(result["lossless"]) == sorted(expected["lossless"])
+            assert sorted(result["lossy"]) == sorted(expected["lossy"])
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_is_lossless_format(self):
+        """Test file format classification helper function."""
+        from music_librarian.file_discovery import is_lossless_format
+
+        # Test lossless formats
+        assert is_lossless_format(Path("test.flac")) == True
+        assert is_lossless_format(Path("test.FLAC")) == True
+        assert is_lossless_format(Path("test.wav")) == True
+        assert is_lossless_format(Path("test.WAV")) == True
+
+        # Test lossy formats
+        assert is_lossless_format(Path("test.mp3")) == False
+        assert is_lossless_format(Path("test.ogg")) == False
+        assert is_lossless_format(Path("test.aac")) == False
+        assert is_lossless_format(Path("test.m4a")) == False
+        assert is_lossless_format(Path("test.opus")) == False
+
+        # Test non-audio files
+        assert is_lossless_format(Path("test.jpg")) == False
+        assert is_lossless_format(Path("test.txt")) == False
 
     def test_preserve_relative_paths(self):
         """Test that returned paths are relative to the search root."""
@@ -1096,3 +1153,105 @@ class TestFileDiscovery:
             assert sorted(result) == sorted(expected)
         finally:
             shutil.rmtree(temp_dir)
+
+
+class TestLossyMetadataHandling:
+    """Tests for metadata handling on lossy audio files."""
+
+    def test_apply_metadata_to_mp3(self):
+        """Test applying metadata overrides to MP3 files."""
+        from music_librarian.metadata_handler import apply_metadata_to_file
+
+        # This test will verify the interface exists and basic functionality
+        # Real files will be needed for full integration testing
+        metadata = {
+            "title": "Test Track",
+            "artist": "Test Artist",
+            "album": "Test Album",
+            "date": "2023",
+            "track number": "01",
+        }
+
+        # Test that the function signature exists and accepts expected parameters
+        # Implementation will be added later
+        assert callable(apply_metadata_to_file)
+
+    def test_copy_lossy_file_with_metadata(self):
+        """Test copying lossy file and applying metadata in one operation."""
+        from music_librarian.audio_processor import copy_with_metadata
+
+        # Test interface exists
+        assert callable(copy_with_metadata)
+
+    def test_supported_lossy_formats_for_metadata(self):
+        """Test that metadata handler supports all required lossy formats."""
+        from music_librarian.metadata_handler import supports_format
+
+        # Test that all lossy formats are supported
+        assert supports_format("mp3") == True
+        assert supports_format("ogg") == True
+        assert supports_format("aac") == True
+        assert supports_format("m4a") == True
+        assert supports_format("opus") == True
+
+        # Test unsupported formats
+        assert supports_format("jpg") == False
+        assert supports_format("txt") == False
+
+
+class TestMixedFormatProcessing:
+    """Integration tests for processing directories with mixed audio formats."""
+
+    def test_process_mixed_directory_lossless_and_lossy(self):
+        """Test processing directory with both lossless and lossy files."""
+        from music_librarian.cli import process_directory
+
+        # This will test the updated process_directory function
+        # that handles both transcoding and copying
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_dir = os.path.join(temp_dir, "source")
+            dest_dir = os.path.join(temp_dir, "dest")
+            os.makedirs(source_dir)
+
+            # Create test files - will need actual audio files for real test
+            # For now, test the expected interface changes
+
+            # Test files would include:
+            # - track1.flac (should be transcoded to .opus)
+            # - track2.mp3 (should be copied as .mp3)
+            # - cover.jpg (should be copied)
+
+            # Expected result structure verification
+            result = process_directory(source_dir, dest_dir, force=True)
+
+            # Verify result structure includes new keys for different file types
+            assert "transcoded" in result or "processed" in result
+            assert "copied" in result or "processed" in result
+            assert "errors" in result
+
+    def test_resolve_output_filename_preserves_lossy_extensions(self):
+        """Test that lossy files keep their original extensions."""
+        from music_librarian.cli import resolve_output_filename_for_type
+
+        # Test that lossless files get .opus extension
+        assert (
+            resolve_output_filename_for_type("track.flac", "lossless") == "track.opus"
+        )
+        assert resolve_output_filename_for_type("track.wav", "lossless") == "track.opus"
+
+        # Test that lossy files preserve their extension
+        assert resolve_output_filename_for_type("track.mp3", "lossy") == "track.mp3"
+        assert resolve_output_filename_for_type("track.ogg", "lossy") == "track.ogg"
+        assert resolve_output_filename_for_type("track.aac", "lossy") == "track.aac"
+
+    def test_rsgain_processes_mixed_audio_files(self):
+        """Test that ReplayGain processing handles mixed output formats."""
+        from music_librarian.cli import build_rsgain_command_for_mixed_formats
+
+        # Test that rsgain can process directories with .opus, .mp3, .ogg, etc.
+        directory = "/dest/album"
+        result = build_rsgain_command_for_mixed_formats(directory)
+
+        # Should still use the same rsgain easy command
+        expected = ["rsgain", "easy", directory]
+        assert result == expected

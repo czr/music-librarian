@@ -131,6 +131,21 @@ def resolve_output_filename(input_filename):
     return str(input_path.with_suffix(".opus"))
 
 
+def resolve_output_filename_for_type(input_filename, file_type):
+    """Convert input filename to appropriate output filename based on type.
+
+    Args:
+        input_filename: Input filename
+        file_type: Either 'lossless' or 'lossy'
+
+    Returns:
+        Output filename with appropriate extension
+    """
+    from music_librarian.audio_processor import get_output_filename
+
+    return get_output_filename(input_filename, file_type)
+
+
 def parse_metadata_file(content):
     """Parse metadata.txt file content.
 
@@ -347,6 +362,19 @@ def build_rsgain_command(directory):
     return ["rsgain", "easy", directory]
 
 
+def build_rsgain_command_for_mixed_formats(directory):
+    """Build rsgain command for ReplayGain processing of mixed audio formats.
+
+    Args:
+        directory: Path to directory containing mixed audio files
+
+    Returns:
+        List of command arguments for subprocess
+    """
+    # rsgain can handle mixed formats in the same directory
+    return ["rsgain", "easy", directory]
+
+
 def get_opus_quality():
     """Get Opus quality setting from environment or default.
 
@@ -357,7 +385,7 @@ def get_opus_quality():
 
 
 def process_directory(source_dir, dest_dir, force=False):
-    """Process a single directory for transcoding.
+    """Process a single directory for mixed audio formats (transcoding and copying).
 
     Args:
         source_dir: Path to source directory
@@ -367,7 +395,11 @@ def process_directory(source_dir, dest_dir, force=False):
     Returns:
         Dict with processing results and statistics
     """
-    from music_librarian.file_discovery import find_audio_files
+    from music_librarian.file_discovery import (
+        find_audio_files_with_types,
+        is_lossless_format,
+    )
+    from music_librarian.audio_processor import process_audio_file
 
     # Check external tools are available
     check_external_tools()
@@ -378,10 +410,11 @@ def process_directory(source_dir, dest_dir, force=False):
     # Create destination directory
     os.makedirs(dest_dir, exist_ok=True)
 
-    # Find all audio files to process
-    audio_files = find_audio_files(Path(source_dir))
+    # Find all audio files with type classification
+    audio_files_by_type = find_audio_files_with_types(Path(source_dir))
+    all_audio_files = audio_files_by_type["lossless"] + audio_files_by_type["lossy"]
 
-    if not audio_files:
+    if not all_audio_files:
         return {"processed": 0, "skipped": 0, "errors": [], "cover_art_copied": False}
 
     # Look for metadata.txt
@@ -394,7 +427,7 @@ def process_directory(source_dir, dest_dir, force=False):
         metadata = parse_metadata_file(content)
 
         # Validate that referenced files exist
-        available_filenames = [str(f) for f in audio_files]
+        available_filenames = [str(f) for f in all_audio_files]
         validate_metadata_files(metadata, available_filenames)
 
     # Process each audio file
@@ -402,11 +435,16 @@ def process_directory(source_dir, dest_dir, force=False):
     skipped = 0
     errors = []
 
-    for audio_file in audio_files:
+    for audio_file in all_audio_files:
         try:
+            # Determine file type
+            file_type = "lossless" if is_lossless_format(audio_file) else "lossy"
+
             # Build paths
             input_path = os.path.join(source_dir, audio_file)
-            output_filename = resolve_output_filename(str(audio_file))
+            output_filename = resolve_output_filename_for_type(
+                str(audio_file), file_type
+            )
             output_path = os.path.join(dest_dir, output_filename)
 
             # Skip if exists and not forcing
@@ -414,22 +452,25 @@ def process_directory(source_dir, dest_dir, force=False):
                 skipped += 1
                 continue
 
-            # Create output directory if needed
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
             # Merge metadata for this file
             file_metadata = metadata["files"].get(str(audio_file), {})
             merged_metadata = merge_metadata(
                 metadata["album"], file_metadata, str(audio_file)
             )
 
-            # Build and run opusenc command
-            cmd = build_opusenc_command(
-                input_path, output_path, quality=quality, metadata=merged_metadata
-            )
+            # Process the file (transcode or copy based on type)
+            if file_type == "lossless":
+                # Transcode lossless files to Opus
+                cmd = build_opusenc_command(
+                    input_path, output_path, quality=quality, metadata=merged_metadata
+                )
+                subprocess.run(cmd, check=True, capture_output=True)
+            else:
+                # Copy lossy files and apply metadata
+                from music_librarian.audio_processor import copy_with_metadata
 
-            # Actually run opusenc
-            subprocess.run(cmd, check=True, capture_output=True)
+                copy_with_metadata(input_path, output_path, merged_metadata)
+
             processed += 1
 
         except Exception as e:
@@ -455,7 +496,7 @@ def process_directory(source_dir, dest_dir, force=False):
     # Run ReplayGain processing if files were processed
     if processed > 0:
         try:
-            rsgain_cmd = build_rsgain_command(dest_dir)
+            rsgain_cmd = build_rsgain_command_for_mixed_formats(dest_dir)
             # Actually run rsgain
             subprocess.run(rsgain_cmd, check=True, capture_output=True)
         except Exception as e:

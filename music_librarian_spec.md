@@ -2,15 +2,18 @@
 
 ## Overview
 
-A Python command-line tool for transcoding FLAC/WAV music collections to Opus format while preserving directory structure and handling metadata overrides.
+A Python command-line tool for processing music collections. The tool transcodes lossless audio (FLAC/WAV) to Opus format, and copies lossy audio files (MP3, OGG, etc.) while preserving directory structure and handling metadata overrides in both cases.
 
 ## Requirements
 
 ### Core Functionality
-- Transcode FLAC and WAV files to Opus format using opusenc
+- Transcode lossless audio files (FLAC, WAV) to Opus format using opusenc
+- Copy lossy audio files (MP3, OGG, AAC, etc.) without transcoding
+- Apply metadata overrides to copied lossy files
 - Preserve source directory structure in destination
 - Handle metadata overrides via `metadata.txt` files
 - Copy cover art files when present
+- Generate ReplayGain tags for all processed audio files
 - Skip existing files by default with option to force overwrite
 
 ### Environment Variables
@@ -29,10 +32,10 @@ music-librarian <command> <source_directory> [source_directory ...] [options]
 
 ### Commands
 
-- `transcode`: transcode FLAC/WAV files from source collection to destination collection.
+- `transcode`: process audio files from source collection to destination collection (transcode lossless to Opus, copy lossy files).
 
 ### Arguments
-- `source_directory`: One or more paths to directories containing files to transcode (must be under `MUSIC_SOURCE_ROOT`)
+- `source_directory`: One or more paths to directories containing audio files to process (must be under `MUSIC_SOURCE_ROOT`)
 
 ### Options
 - `--force, -f`: Overwrite existing files in destination
@@ -40,18 +43,30 @@ music-librarian <command> <source_directory> [source_directory ...] [options]
 
 ### Examples
 ```bash
-export MUSIC_SOURCE_ROOT=/media/external/flac
-export MUSIC_DEST_ROOT=/home/user/music/opus
+export MUSIC_SOURCE_ROOT=/media/external/music
+export MUSIC_DEST_ROOT=/home/user/music/processed
 
-# Transcode an album
-music-librarian transcode /media/external/flac/Pink\ Floyd/Dark\ Side\ of\ the\ Moon/
+# Process an album (mix of FLAC and MP3 files)
+music-librarian transcode /media/external/music/Pink\ Floyd/Dark\ Side\ of\ the\ Moon/
 
-# Transcode multiple albums at once
-music-librarian transcode /media/external/flac/Pink\ Floyd/Dark\ Side\ of\ the\ Moon/ /media/external/flac/Led\ Zeppelin/IV/
+# Process multiple albums at once
+music-librarian transcode /media/external/music/Pink\ Floyd/Dark\ Side\ of\ the\ Moon/ /media/external/music/Led\ Zeppelin/IV/
 
-# Transcode all albums for a single artist
-music-librarian transcode /media/external/flac/Pink\ Floyd/
+# Process all albums for a single artist
+music-librarian transcode /media/external/music/Pink\ Floyd/
 ```
+
+### Processing Behavior Examples
+Given a source directory containing both lossless and lossy files:
+```
+/media/external/music/Album/
+├── 01-track.flac     → transcoded to /home/user/music/processed/Album/01-track.opus
+├── 02-track.mp3      → copied to /home/user/music/processed/Album/02-track.mp3
+├── 03-track.ogg      → copied to /home/user/music/processed/Album/03-track.ogg
+└── cover.jpg         → copied to /home/user/music/processed/Album/cover.jpg
+```
+
+All processed files (both transcoded and copied) will have ReplayGain tags applied as a cohesive album.
 
 ## Behavior
 
@@ -73,14 +88,21 @@ transcode /media/external/flac/Pink Floyd/Dark Side of the Moon/
 ### File Processing
 Source directories are processed sequentially. Within each directory:
 
-1. Recursively scan for FLAC and WAV files
-2. For each audio file:
+1. Recursively scan for audio files:
+   - **Lossless formats**: FLAC (.flac), WAV (.wav)
+   - **Lossy formats**: MP3 (.mp3), OGG Vorbis (.ogg), AAC (.aac, .m4a), Opus (.opus)
+2. For each lossless audio file:
    - Generate destination path with `.opus` extension
    - Skip if destination exists (unless `--force` specified)
    - Transcode using opusenc with configured quality settings
    - Apply metadata overrides from `metadata.txt` if present
-3. After all files in a directory are transcoded, generate ReplayGain tags:
-   - Use rsgain to process all `.opus` files directly in each destination directory
+3. For each lossy audio file:
+   - Generate destination path preserving original extension
+   - Skip if destination exists (unless `--force` specified)
+   - Copy file to destination without transcoding
+   - Apply metadata overrides from `metadata.txt` using appropriate metadata library
+4. After all files in a directory are processed, generate ReplayGain tags:
+   - Use rsgain to process all audio files directly in each destination directory
    - Files are treated as a single album for ReplayGain calculation
 
 ### Cover Art Handling
@@ -177,7 +199,8 @@ All errors are fatal - the program will exit immediately when any error occurs, 
 
 ### Python Libraries
 - Standard library modules for file operations, argument parsing
-- Audio metadata library (TBD - mutagen, eyed3, etc.)
+- Audio metadata library for lossy file processing (TBD - mutagen, eyed3, etc.)
+- Note: opusenc handles metadata for transcoded files, but copied lossy files need separate metadata processing
 
 ## Configuration
 
@@ -186,5 +209,6 @@ All errors are fatal - the program will exit immediately when any error occurs, 
 - Configurable via `OPUS_QUALITY` environment variable
 
 ### Supported Audio Formats
-- Input: FLAC (.flac), WAV (.wav)
-- Output: Opus (.opus)
+- **Lossless input (transcoded to Opus)**: FLAC (.flac), WAV (.wav)
+- **Lossy input (copied without transcoding)**: MP3 (.mp3), OGG Vorbis (.ogg), AAC (.aac, .m4a), Opus (.opus)
+- **Output**: Opus (.opus) for transcoded files, original format preserved for copied files
