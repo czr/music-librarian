@@ -81,3 +81,4 @@ When writing tests, avoid setting up common representative data in shared setup 
 ## Project Memories
 
 - We're going to go test first for all features.
+- Remember to run black after making edits.
