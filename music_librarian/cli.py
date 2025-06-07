@@ -428,9 +428,8 @@ def process_directory(source_dir, dest_dir, force=False):
                 input_path, output_path, quality=quality, metadata=merged_metadata
             )
 
-            # For now, just print the command instead of running it
-            # In real implementation: subprocess.run(cmd, check=True)
-            click.echo(f"Would run: {' '.join(cmd)}")
+            # Actually run opusenc
+            subprocess.run(cmd, check=True, capture_output=True)
             processed += 1
 
         except Exception as e:
@@ -447,9 +446,8 @@ def process_directory(source_dir, dest_dir, force=False):
             cover_dest = os.path.join(dest_dir, cover_art)
 
             if not os.path.exists(cover_dest) or force:
-                # For now, just print instead of copying
-                # In real implementation: shutil.copy2(cover_src, cover_dest)
-                click.echo(f"Would copy cover art: {cover_src} -> {cover_dest}")
+                # Actually copy the cover art
+                shutil.copy2(cover_src, cover_dest)
                 cover_art_copied = True
         except Exception as e:
             errors.append(f"Error copying cover art: {str(e)}")
@@ -458,9 +456,8 @@ def process_directory(source_dir, dest_dir, force=False):
     if processed > 0:
         try:
             rsgain_cmd = build_rsgain_command(dest_dir)
-            # For now, just print instead of running
-            # In real implementation: subprocess.run(rsgain_cmd, check=True)
-            click.echo(f"Would run ReplayGain: {' '.join(rsgain_cmd)}")
+            # Actually run rsgain
+            subprocess.run(rsgain_cmd, check=True, capture_output=True)
         except Exception as e:
             errors.append(f"Error running ReplayGain: {str(e)}")
 

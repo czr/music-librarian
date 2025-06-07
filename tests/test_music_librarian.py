@@ -1,5 +1,6 @@
 import os
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 import pytest
@@ -708,27 +709,199 @@ class TestReplayGainIntegration:
 class TestTranscodeWorkflow:
     """Integration tests for complete transcoding workflow."""
 
-    def test_process_directory_basic(self):
-        """Test processing a directory with FLAC files."""
-        from music_librarian.cli import process_directory
+    def create_test_flac_file(self, filepath):
+        """Create a minimal test FLAC file using ffmpeg."""
+        # Generate 1 second of silence as FLAC
+        cmd = [
+            "ffmpeg", 
+            "-f", "lavfi", 
+            "-i", "anullsrc=channel_layout=stereo:sample_rate=44100", 
+            "-t", "1", 
+            "-c:a", "flac",
+            "-y",  # Overwrite without asking
+            str(filepath)
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
 
-        # This test requires actual implementation to verify workflow
-        # For now, test that the function exists and can be called
-        try:
-            from music_librarian.cli import process_directory
-        except ImportError:
-            pytest.fail("process_directory function not implemented")
+    def create_test_cover_art(self, filepath):
+        """Create a minimal test cover art file."""
+        # Create a simple 1x1 pixel JPG using ffmpeg
+        cmd = [
+            "ffmpeg",
+            "-f", "lavfi",
+            "-i", "color=red:size=1x1:duration=1",
+            "-frames:v", "1",
+            "-y",  # Overwrite without asking
+            str(filepath)
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
+
+    def test_process_directory_with_flac_file(self):
+        """Test processing a directory with actual FLAC files and cover art."""
+        from music_librarian.cli import process_directory
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create source and destination directories
+            source_dir = os.path.join(temp_dir, "source")
+            dest_dir = os.path.join(temp_dir, "dest")
+            os.makedirs(source_dir)
+            
+            # Create test FLAC file
+            flac_file = os.path.join(source_dir, "test.flac")
+            self.create_test_flac_file(flac_file)
+            
+            # Create test cover art
+            cover_file = os.path.join(source_dir, "cover.jpg")
+            self.create_test_cover_art(cover_file)
+            
+            # Process the directory
+            result = process_directory(source_dir, dest_dir, force=True)
+            
+            # Verify results
+            assert result["processed"] == 1
+            assert result["skipped"] == 0
+            assert result["cover_art_copied"] == True
+            assert len(result["errors"]) == 0
+            
+            # Verify output files exist
+            expected_opus = os.path.join(dest_dir, "test.opus")
+            expected_cover = os.path.join(dest_dir, "cover.jpg")
+            
+            assert os.path.exists(expected_opus), "Opus file should be created"
+            assert os.path.exists(expected_cover), "Cover art should be copied"
+            
+            # Verify opus file is not empty
+            assert os.path.getsize(expected_opus) > 0, "Opus file should not be empty"
+
+    def test_process_directory_with_metadata(self):
+        """Test processing with metadata.txt file."""
+        from music_librarian.cli import process_directory
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create source and destination directories
+            source_dir = os.path.join(temp_dir, "source")
+            dest_dir = os.path.join(temp_dir, "dest")
+            os.makedirs(source_dir)
+            
+            # Create test FLAC file
+            flac_file = os.path.join(source_dir, "track.flac")
+            self.create_test_flac_file(flac_file)
+            
+            # Create metadata.txt
+            metadata_content = """title: Test Album
+artist: Test Artist
+date: 2023
+
+file: track.flac:
+title: Test Track
+track number: 01
+"""
+            metadata_file = os.path.join(source_dir, "metadata.txt")
+            with open(metadata_file, 'w') as f:
+                f.write(metadata_content)
+            
+            # Process the directory
+            result = process_directory(source_dir, dest_dir, force=True)
+            
+            # Verify results
+            assert result["processed"] == 1
+            assert len(result["errors"]) == 0
+            
+            # Verify output file exists
+            expected_opus = os.path.join(dest_dir, "track.opus")
+            assert os.path.exists(expected_opus), "Opus file should be created"
+
+    def test_process_directory_skip_existing(self):
+        """Test that existing files are skipped when force=False."""
+        from music_librarian.cli import process_directory
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create source and destination directories
+            source_dir = os.path.join(temp_dir, "source")
+            dest_dir = os.path.join(temp_dir, "dest")
+            os.makedirs(source_dir)
+            os.makedirs(dest_dir)
+            
+            # Create test FLAC file
+            flac_file = os.path.join(source_dir, "test.flac")
+            self.create_test_flac_file(flac_file)
+            
+            # Create existing opus file
+            existing_opus = os.path.join(dest_dir, "test.opus")
+            with open(existing_opus, 'w') as f:
+                f.write("existing content")
+            
+            # Process the directory without force
+            result = process_directory(source_dir, dest_dir, force=False)
+            
+            # Verify results - should skip existing file
+            assert result["processed"] == 0
+            assert result["skipped"] == 1
+            assert len(result["errors"]) == 0
+            
+            # Verify existing file is unchanged
+            with open(existing_opus, 'r') as f:
+                content = f.read()
+            assert content == "existing content"
+
+    def test_process_directory_force_overwrite(self):
+        """Test that existing files are overwritten when force=True."""
+        from music_librarian.cli import process_directory
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create source and destination directories
+            source_dir = os.path.join(temp_dir, "source")
+            dest_dir = os.path.join(temp_dir, "dest")
+            os.makedirs(source_dir)
+            os.makedirs(dest_dir)
+            
+            # Create test FLAC file
+            flac_file = os.path.join(source_dir, "test.flac")
+            self.create_test_flac_file(flac_file)
+            
+            # Create existing opus file
+            existing_opus = os.path.join(dest_dir, "test.opus")
+            with open(existing_opus, 'w') as f:
+                f.write("existing content")
+            
+            original_size = os.path.getsize(existing_opus)
+            
+            # Process the directory with force
+            result = process_directory(source_dir, dest_dir, force=True)
+            
+            # Verify results - should process the file
+            assert result["processed"] == 1
+            assert result["skipped"] == 0
+            assert len(result["errors"]) == 0
+            
+            # Verify file was overwritten (different size)
+            new_size = os.path.getsize(existing_opus)
+            assert new_size != original_size, "File should have been overwritten"
 
     def test_get_opus_quality_from_env(self):
         """Test reading OPUS_QUALITY from environment variable."""
         from music_librarian.cli import get_opus_quality
-
+        
         # Test default quality when env var not set
-        quality = get_opus_quality()
-        assert quality is not None  # Should have a reasonable default
-
-        # Test reading from environment (would need to mock os.environ)
-        # This is a placeholder for the actual implementation
+        old_value = os.environ.get("OPUS_QUALITY")
+        try:
+            if "OPUS_QUALITY" in os.environ:
+                del os.environ["OPUS_QUALITY"]
+            
+            quality = get_opus_quality()
+            assert quality == "128"  # Default value
+            
+            # Test reading from environment
+            os.environ["OPUS_QUALITY"] = "192"
+            quality = get_opus_quality()
+            assert quality == "192"
+            
+        finally:
+            # Restore original value
+            if old_value is not None:
+                os.environ["OPUS_QUALITY"] = old_value
+            elif "OPUS_QUALITY" in os.environ:
+                del os.environ["OPUS_QUALITY"]
 
 
 class TestFileDiscovery:
