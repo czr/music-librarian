@@ -26,11 +26,11 @@ def export(source_directories, force):
     source_root = os.environ.get("MUSIC_SOURCE_ROOT")
     dest_root = os.environ.get("MUSIC_DEST_ROOT")
 
-    if not source_root:
+    if not source_root or source_root.strip() == "":
         click.echo("Error: MUSIC_SOURCE_ROOT environment variable not set", err=True)
         sys.exit(1)
 
-    if not dest_root:
+    if not dest_root or dest_root.strip() == "":
         click.echo("Error: MUSIC_DEST_ROOT environment variable not set", err=True)
         sys.exit(1)
 

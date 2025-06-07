@@ -30,7 +30,7 @@ class TestExportCLI:
     def test_export_missing_source_root_env(self):
         """Test that export fails when MUSIC_SOURCE_ROOT is not set."""
         runner = CliRunner()
-        env = {"MUSIC_DEST_ROOT": "/dest"}
+        env = {"MUSIC_DEST_ROOT": "/dest", "MUSIC_SOURCE_ROOT": ""}
         result = runner.invoke(cli, ["export", "/some/path"], env=env)
         assert result.exit_code == 1
         assert "MUSIC_SOURCE_ROOT environment variable not set" in result.output
@@ -38,7 +38,7 @@ class TestExportCLI:
     def test_export_missing_dest_root_env(self):
         """Test that export fails when MUSIC_DEST_ROOT is not set."""
         runner = CliRunner()
-        env = {"MUSIC_SOURCE_ROOT": "/source"}
+        env = {"MUSIC_SOURCE_ROOT": "/source", "MUSIC_DEST_ROOT": ""}
         result = runner.invoke(cli, ["export", "/some/path"], env=env)
         assert result.exit_code == 1
         assert "MUSIC_DEST_ROOT environment variable not set" in result.output
