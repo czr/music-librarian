@@ -255,7 +255,7 @@ title: Mirage
         """Test parsing metadata.txt with empty values."""
         from music_librarian.cli import parse_metadata_file
 
-        metadata_content = """title: 
+        metadata_content = """title:
 artist: Test Artist
 date: 2023
 
@@ -276,13 +276,13 @@ track number: 01
         """Test parsing handles leading/trailing whitespace correctly."""
         from music_librarian.cli import parse_metadata_file
 
-        metadata_content = """  title:   Album Title   
-artist:Perturbator  
+        metadata_content = """  title:   Album Title
+artist:Perturbator
 date:  2012
 
 file:  track1.flac  :
-  title:  Track Title  
-track number:  01  
+  title:  Track Title
+track number:  01
 """
 
         expected = {
@@ -299,7 +299,7 @@ track number:  01
 
         metadata_content = """Title: Should Not Match
 title: Correct Title
-Artist: Should Not Match  
+Artist: Should Not Match
 artist: Correct Artist
 """
 
@@ -742,6 +742,67 @@ class TestExportWorkflow:
             str(filepath),
         ]
         subprocess.run(cmd, check=True, capture_output=True)
+
+    def test_process_directory_creates_nested_directories(self):
+        """Test that processing creates nested Artist/Album directory structure."""
+        from music_librarian.cli import process_directory
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create source directory with nested artist/album structure
+            artist_source_dir = os.path.join(temp_dir, "source", "Pink Floyd")
+            album_source_dir = os.path.join(artist_source_dir, "Dark Side of the Moon")
+            os.makedirs(album_source_dir)
+
+            # Create test FLAC file
+            flac_file = os.path.join(album_source_dir, "01 - Speak to Me.flac")
+            self.create_test_flac_file(flac_file)
+
+            # Create test cover art
+            cover_file = os.path.join(album_source_dir, "cover.jpg")
+            self.create_test_cover_art(cover_file)
+
+            # Define destination path that doesn't exist yet
+            artist_dest_dir = os.path.join(temp_dir, "dest", "Pink Floyd")
+            album_dest_dir = os.path.join(artist_dest_dir, "Dark Side of the Moon")
+
+            # Verify destination directory doesn't exist before processing
+            assert not os.path.exists(
+                artist_dest_dir
+            ), "Parent destination directory should not exist initially"
+            assert not os.path.exists(
+                album_dest_dir
+            ), "Album destination directory should not exist initially"
+
+            # Process the directory - this should create all necessary directories
+            result = process_directory(artist_source_dir, artist_dest_dir, force=True)
+
+            # Verify processing was successful
+            assert result["processed"] == 1
+            assert result["skipped"] == 0
+            assert result["cover_art_copied"] == True
+            assert len(result["errors"]) == 0
+
+            # Verify that nested directories were created
+            assert os.path.exists(
+                album_dest_dir
+            ), "Album destination directory should be created"
+            assert os.path.isdir(
+                album_dest_dir
+            ), "Album destination should be a directory"
+
+            # Verify output files exist in the correct nested location
+            expected_opus = os.path.join(album_dest_dir, "01 - Speak to Me.opus")
+            expected_cover = os.path.join(album_dest_dir, "cover.jpg")
+
+            assert os.path.exists(
+                expected_opus
+            ), "Opus file should be created in nested directory"
+            assert os.path.exists(
+                expected_cover
+            ), "Cover art should be copied to nested directory"
+
+            # Verify opus file is not empty
+            assert os.path.getsize(expected_opus) > 0, "Opus file should not be empty"
 
     def test_process_directory_with_flac_file(self):
         """Test processing a directory with actual FLAC files and cover art."""

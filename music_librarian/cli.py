@@ -440,12 +440,17 @@ def process_directory(source_dir, dest_dir, force=False):
             # Determine file type
             file_type = "lossless" if is_lossless_format(audio_file) else "lossy"
 
-            # Build paths
+            # Build paths preserving relative directory structure
             input_path = os.path.join(source_dir, audio_file)
             output_filename = resolve_output_filename_for_type(
                 str(audio_file), file_type
             )
             output_path = os.path.join(dest_dir, output_filename)
+
+            # Create subdirectories in destination if needed
+            output_dir = os.path.dirname(output_path)
+            if output_dir != dest_dir:
+                os.makedirs(output_dir, exist_ok=True)
 
             # Skip if exists and not forcing
             if os.path.exists(output_path) and not force:
@@ -476,22 +481,41 @@ def process_directory(source_dir, dest_dir, force=False):
         except Exception as e:
             errors.append(f"Error processing {audio_file}: {str(e)}")
 
-    # Copy cover art if present
+    # Copy cover art if present - check all directories that contain audio files
     cover_art_copied = False
-    all_files = os.listdir(source_dir)
-    cover_art = find_cover_art(all_files)
 
-    if cover_art:
-        try:
-            cover_src = os.path.join(source_dir, cover_art)
-            cover_dest = os.path.join(dest_dir, cover_art)
+    # Get unique directories that contain audio files
+    audio_dirs = set()
+    for audio_file in all_audio_files:
+        audio_dir = os.path.dirname(str(audio_file))
+        if audio_dir:  # Only add if there's a subdirectory
+            audio_dirs.add(audio_dir)
+        else:  # Files in root directory
+            audio_dirs.add("")
 
-            if not os.path.exists(cover_dest) or force:
-                # Actually copy the cover art
-                shutil.copy2(cover_src, cover_dest)
-                cover_art_copied = True
-        except Exception as e:
-            errors.append(f"Error copying cover art: {str(e)}")
+    # Check each directory for cover art
+    for audio_dir in audio_dirs:
+        source_subdir = os.path.join(source_dir, audio_dir) if audio_dir else source_dir
+        dest_subdir = os.path.join(dest_dir, audio_dir) if audio_dir else dest_dir
+
+        if os.path.exists(source_subdir):
+            all_files = os.listdir(source_subdir)
+            cover_art = find_cover_art(all_files)
+
+            if cover_art:
+                try:
+                    cover_src = os.path.join(source_subdir, cover_art)
+                    cover_dest = os.path.join(dest_subdir, cover_art)
+
+                    # Ensure destination subdirectory exists
+                    os.makedirs(dest_subdir, exist_ok=True)
+
+                    if not os.path.exists(cover_dest) or force:
+                        # Actually copy the cover art
+                        shutil.copy2(cover_src, cover_dest)
+                        cover_art_copied = True
+                except Exception as e:
+                    errors.append(f"Error copying cover art from {audio_dir}: {str(e)}")
 
     # Run ReplayGain processing if files were processed
     if processed > 0:
