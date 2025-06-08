@@ -94,6 +94,65 @@ def export(source_directories, force):
         sys.exit(1)
 
 
+@cli.command(name="extract-metadata")
+@click.argument("source_directories", nargs=-1, required=True)
+@click.option(
+    "-f",
+    "--force",
+    is_flag=True,
+    help="Overwrite existing metadata.txt files",
+)
+@click.option(
+    "--template-only",
+    is_flag=True,
+    help="Generate empty template with field names but no values from audio files",
+)
+def extract_metadata(source_directories, force, template_only):
+    """Generate metadata.txt files from audio files in specified directories."""
+    click.echo(f"Extracting metadata from {len(source_directories)} directories...")
+    click.echo(f"Force overwrite: {force}")
+    click.echo(f"Template only: {template_only}")
+
+    # Process each source directory
+    total_processed = 0
+    total_skipped = 0
+    total_errors = []
+
+    for source_dir in source_directories:
+        click.echo(f"\nProcessing: {source_dir}")
+
+        try:
+            result = extract_metadata_from_directory(
+                source_dir, force=force, template_only=template_only
+            )
+
+            total_processed += result.get("processed", 0)
+            total_skipped += result.get("skipped", 0)
+            total_errors.extend(result.get("errors", []))
+
+            click.echo(f"  Processed: {result.get('processed', 0)} directories")
+            click.echo(f"  Skipped: {result.get('skipped', 0)} directories")
+
+            if result.get("errors"):
+                for error in result["errors"]:
+                    click.echo(f"  Error: {error}", err=True)
+
+        except Exception as e:
+            error_msg = f"Failed to process directory {source_dir}: {str(e)}"
+            total_errors.append(error_msg)
+            click.echo(f"  Error: {error_msg}", err=True)
+
+    # Summary
+    click.echo(f"\nSummary:")
+    click.echo(f"  Total processed: {total_processed}")
+    click.echo(f"  Total skipped: {total_skipped}")
+    click.echo(f"  Total errors: {len(total_errors)}")
+
+    # Exit with error code if there were errors
+    if total_errors:
+        sys.exit(1)
+
+
 def resolve_destination_path(source_dir, source_root, dest_root):
     """Resolve destination path from source directory path.
 
@@ -531,4 +590,306 @@ def process_directory(source_dir, dest_dir, force=False):
         "skipped": skipped,
         "errors": errors,
         "cover_art_copied": cover_art_copied,
+    }
+
+
+def discover_and_sort_audio_files(directory):
+    """Discover audio files in directory and return them sorted alphabetically.
+
+    Args:
+        directory: Path to directory to search
+
+    Returns:
+        List of Path objects for audio files, sorted alphabetically
+    """
+    from music_librarian.file_discovery import find_audio_files
+
+    directory_path = Path(directory)
+    audio_files = find_audio_files(directory_path)
+
+    # Sort alphabetically by filename
+    return sorted(audio_files, key=lambda p: str(p))
+
+
+def extract_metadata_from_file(filepath):
+    """Extract metadata from a single audio file.
+
+    Args:
+        filepath: Path to audio file
+
+    Returns:
+        Dict containing metadata fields
+    """
+    from music_librarian.metadata_handler import read_metadata_from_file
+
+    try:
+        metadata = read_metadata_from_file(filepath)
+        # Ensure all expected fields are present
+        result = {
+            "title": metadata.get("title", ""),
+            "artist": metadata.get("artist", ""),
+            "album": metadata.get("album", ""),
+            "date": metadata.get("date", ""),
+            "track number": metadata.get("track number", ""),
+        }
+        return result
+    except Exception:
+        # If metadata extraction fails, return empty metadata
+        return {"title": "", "artist": "", "album": "", "date": "", "track number": ""}
+
+
+def generate_metadata_template(
+    audio_files, album_metadata, file_metadata, template_only=False
+):
+    """Generate metadata.txt template content.
+
+    Args:
+        audio_files: List of Path objects for audio files
+        album_metadata: Dict of album-wide metadata
+        file_metadata: Dict mapping filenames to metadata dicts
+        template_only: If True, generate empty template with no values
+
+    Returns:
+        String content for metadata.txt file
+    """
+    lines = []
+
+    # Header comments
+    lines.append("# This file contains metadata overrides for the export command")
+    lines.append("# Fields: title, artist, date, track number")
+    lines.append("# Album-wide fields apply to all tracks unless overridden per-file")
+    lines.append("")
+
+    # Album metadata section
+    lines.append("# Album metadata")
+
+    if template_only:
+        # Empty template
+        lines.append("title:")
+        lines.append("artist:")
+        lines.append("date:")
+    else:
+        # Use provided album metadata
+        for key, value in album_metadata.items():
+            lines.append(f"{key}: {value}")
+
+    lines.append("")
+
+    # Per-file metadata sections
+    lines.append("# Per-file metadata")
+    for audio_file in audio_files:
+        filename = str(audio_file)
+        lines.append(f"file: {filename}:")
+
+        if template_only:
+            # Empty template
+            lines.append("title:")
+            lines.append("track number:")
+        else:
+            # Use provided file metadata
+            file_meta = file_metadata.get(filename, {})
+            for key, value in file_meta.items():
+                lines.append(f"{key}: {value}")
+
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def find_album_directories(root_directory):
+    """Find all directories that contain audio files directly (not in subdirectories).
+
+    Args:
+        root_directory: Path to root directory to search
+
+    Returns:
+        List of Path objects for directories containing audio files
+    """
+    root_path = Path(root_directory)
+    album_directories = []
+
+    # Check all directories recursively
+    for directory_path in [root_path] + list(root_path.rglob("*")):
+        if not directory_path.is_dir():
+            continue
+
+        # Check if this directory contains audio files directly (not in subdirectories)
+        audio_extensions = {".flac", ".wav", ".mp3", ".ogg", ".aac", ".m4a", ".opus"}
+        has_direct_audio_files = False
+
+        for file_path in directory_path.iterdir():
+            if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
+                has_direct_audio_files = True
+                break
+
+        if has_direct_audio_files:
+            album_directories.append(directory_path)
+
+    return album_directories
+
+
+def discover_and_sort_audio_files_in_directory_only(directory):
+    """Discover audio files only in the specified directory (not recursively).
+
+    Args:
+        directory: Path to directory to search
+
+    Returns:
+        List of Path objects for audio files in the directory only (not subdirectories)
+    """
+    directory_path = Path(directory)
+    audio_extensions = {".flac", ".wav", ".mp3", ".ogg", ".aac", ".m4a", ".opus"}
+    audio_files = []
+
+    for file_path in directory_path.iterdir():
+        if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
+            audio_files.append(file_path.name)
+
+    # Sort alphabetically by filename
+    return sorted([Path(f) for f in audio_files])
+
+
+def extract_metadata_from_single_directory(directory, force=False, template_only=False):
+    """Extract metadata from audio files in a single directory and generate metadata.txt.
+
+    Args:
+        directory: Path to directory to process
+        force: Whether to overwrite existing metadata.txt files
+        template_only: Whether to generate empty template
+
+    Returns:
+        Dict with processing results for this single directory
+    """
+    directory_path = Path(directory)
+    metadata_file = directory_path / "metadata.txt"
+
+    # Check if metadata.txt already exists
+    if metadata_file.exists() and not force:
+        return {"processed": 0, "skipped": 1, "errors": []}
+
+    # Discover and sort audio files (only in this directory, not recursively)
+    try:
+        audio_files = discover_and_sort_audio_files_in_directory_only(directory)
+    except Exception as e:
+        return {
+            "processed": 0,
+            "skipped": 0,
+            "errors": [f"Failed to discover audio files: {str(e)}"],
+        }
+
+    if not audio_files:
+        return {
+            "processed": 0,
+            "skipped": 0,
+            "errors": [f"No audio files found in directory {directory}"],
+        }
+
+    # Extract metadata from files
+    album_metadata = {}
+    file_metadata = {}
+
+    if not template_only:
+        # Extract album metadata from first file
+        first_file = directory_path / audio_files[0]
+        try:
+            first_file_meta = extract_metadata_from_file(str(first_file))
+            # Map to album metadata (title becomes album title, etc.)
+            album_metadata = {
+                "title": first_file_meta.get("album", ""),
+                "artist": first_file_meta.get("artist", ""),
+                "date": first_file_meta.get("date", ""),
+            }
+        except Exception as e:
+            return {
+                "processed": 0,
+                "skipped": 0,
+                "errors": [
+                    f"Failed to extract metadata from {audio_files[0]}: {str(e)}"
+                ],
+            }
+
+        # Extract metadata for each file
+        for audio_file in audio_files:
+            filepath = directory_path / audio_file
+            try:
+                meta = extract_metadata_from_file(str(filepath))
+                file_metadata[str(audio_file)] = {
+                    "title": meta.get("title", ""),
+                    "track number": meta.get("track number", ""),
+                }
+            except Exception as e:
+                return {
+                    "processed": 0,
+                    "skipped": 0,
+                    "errors": [
+                        f"Failed to extract metadata from {audio_file}: {str(e)}"
+                    ],
+                }
+
+    # Generate template content
+    try:
+        template_content = generate_metadata_template(
+            audio_files, album_metadata, file_metadata, template_only
+        )
+    except Exception as e:
+        return {
+            "processed": 0,
+            "skipped": 0,
+            "errors": [f"Failed to generate template: {str(e)}"],
+        }
+
+    # Write metadata.txt file
+    try:
+        metadata_file.write_text(template_content, encoding="utf-8")
+    except Exception as e:
+        return {
+            "processed": 0,
+            "skipped": 0,
+            "errors": [f"Failed to write metadata.txt: {str(e)}"],
+        }
+
+    return {"processed": 1, "skipped": 0, "errors": []}
+
+
+def extract_metadata_from_directory(directory, force=False, template_only=False):
+    """Extract metadata from all album directories found recursively.
+
+    Args:
+        directory: Path to root directory to search for album directories
+        force: Whether to overwrite existing metadata.txt files
+        template_only: Whether to generate empty template
+
+    Returns:
+        Dict with aggregated processing results
+    """
+    # Find all directories that contain audio files directly
+    try:
+        album_directories = find_album_directories(directory)
+    except Exception as e:
+        return {
+            "processed": 0,
+            "skipped": 0,
+            "errors": [f"Failed to find album directories: {str(e)}"],
+        }
+
+    if not album_directories:
+        raise ValueError("No audio files found in directory")
+
+    # Process each album directory
+    total_processed = 0
+    total_skipped = 0
+    total_errors = []
+
+    for album_dir in album_directories:
+        result = extract_metadata_from_single_directory(
+            album_dir, force=force, template_only=template_only
+        )
+        total_processed += result.get("processed", 0)
+        total_skipped += result.get("skipped", 0)
+        total_errors.extend(result.get("errors", []))
+
+    return {
+        "processed": total_processed,
+        "skipped": total_skipped,
+        "errors": total_errors,
     }

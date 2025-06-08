@@ -23,7 +23,7 @@ A Python command-line tool for processing music collections. The tool transcodes
 
 ## Command Line Interface
 
-There is currently only one command, `export`, but it is expected that more will be added later.
+Music Librarian is a command-line tool, with a subcommand-based interface.
 
 ### Usage
 ```bash
@@ -33,6 +33,7 @@ music-librarian <command> <source_directory> [source_directory ...] [options]
 ### Commands
 
 - `export`: export audio files from source collection to destination collection (transcode lossless to Opus, copy lossy files).
+- `extract-metadata`: generate metadata.txt files from audio files in specified directories.
 
 ### Arguments
 - `source_directory`: One or more paths to directories containing audio files to process (must be under `MUSIC_SOURCE_ROOT`)
@@ -54,6 +55,12 @@ music-librarian export /media/external/music/Pink\ Floyd/Dark\ Side\ of\ the\ Mo
 
 # Export all albums for a single artist
 music-librarian export /media/external/music/Pink\ Floyd/
+
+# Generate metadata.txt for an album
+music-librarian extract-metadata /media/external/music/Pink\ Floyd/Dark\ Side\ of\ the\ Moon/
+
+# Generate metadata.txt for multiple albums
+music-librarian extract-metadata /media/external/music/Pink\ Floyd/Dark\ Side\ of\ the\ Moon/ /media/external/music/Led\ Zeppelin/IV/
 ```
 
 ### Processing Behavior Examples
@@ -68,7 +75,7 @@ Given a source directory containing both lossless and lossy files:
 
 All processed files (both transcoded and copied) will have ReplayGain tags applied as a cohesive album.
 
-## Behavior
+## Export Command
 
 ### Path Resolution
 1. Validate that each`source_directory` is under `MUSIC_SOURCE_ROOT`
@@ -201,6 +208,57 @@ All errors are fatal - the program will exit immediately when any error occurs, 
 - Standard library modules for file operations, argument parsing
 - Audio metadata library for lossy file processing (TBD - mutagen, eyed3, etc.)
 - Note: opusenc handles metadata for transcoded files, but copied lossy files need separate metadata processing
+
+## Generate Metadata Command
+
+### Purpose
+The `extract-metadata` command extracts metadata from audio files in specified directories and creates `metadata.txt` files that can be used with the `export` command to override metadata during processing.
+
+### Behavior
+1. **File discovery**: Recursively scan each directory for audio files (same formats as export command)
+2. **File sorting**: Sort discovered files alphabetically for predictable processing order
+3. **Metadata extraction**: Read metadata from all audio files in each directory
+4. **Template generation**: Create `metadata.txt` file in each directory with:
+   - Album-wide metadata extracted from first audio file (after sorting)
+   - File-specific sections for each audio file with current metadata values
+   - Missing metadata fields included as blank values
+   - Comments explaining the format and usage
+
+### Options
+- `--force, -f`: Overwrite existing `metadata.txt` files
+- `--template-only`: Generate empty template with field names but no values from audio files
+
+### Generated File Format
+The generated `metadata.txt` will include:
+- Header comments explaining the format and supported fields
+- Album-wide metadata section with values extracted from audio files
+- File-specific sections for each audio file with current metadata
+
+### Example Generated File
+```
+# This file contains metadata overrides for the export command
+# Fields: title, artist, date, track number
+# Album-wide fields apply to all tracks unless overridden per-file
+
+# Album metadata
+title: The Dark Side of the Moon
+artist: Pink Floyd
+date: 1973
+
+# Per-file metadata
+file: 01-speak_to_me.flac:
+title: Speak to Me
+track number: 1
+
+file: 02-breathe.flac:
+title: Breathe (In the Air)
+track number: 2
+```
+
+### Error Handling
+- Fatal error if no audio files found in a directory
+- Fatal error if unable to read metadata from audio files
+- Skip directories that already contain `metadata.txt` unless `--force` specified
 
 ## Configuration
 

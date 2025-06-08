@@ -1316,3 +1316,412 @@ class TestMixedFormatProcessing:
         # Should still use the same rsgain easy command
         expected = ["rsgain", "easy", directory]
         assert result == expected
+
+
+class TestExtractMetadataCLI:
+    """Tests for the extract-metadata command CLI interface."""
+
+    def test_extract_metadata_command_exists(self):
+        """Test that extract-metadata command is registered."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--help"])
+        assert result.exit_code == 0
+        assert "extract-metadata" in result.output
+
+    def test_extract_metadata_requires_source_directory(self):
+        """Test that extract-metadata command requires at least one source directory."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["extract-metadata"])
+        assert result.exit_code != 0
+        assert "Missing argument" in result.output
+
+    def test_extract_metadata_accepts_single_directory(self):
+        """Test that extract-metadata accepts a single source directory."""
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            test_dir = os.path.abspath("test_music")
+            os.makedirs(test_dir)
+
+            result = runner.invoke(cli, ["extract-metadata", test_dir])
+            # Should not fail with argument parsing error
+            assert "Missing argument" not in result.output
+
+    def test_extract_metadata_accepts_multiple_directories(self):
+        """Test that extract-metadata accepts multiple source directories."""
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            dir1 = os.path.abspath("music1")
+            dir2 = os.path.abspath("music2")
+            os.makedirs(dir1)
+            os.makedirs(dir2)
+
+            result = runner.invoke(cli, ["extract-metadata", dir1, dir2])
+            # Should not fail with argument parsing error
+            assert "Missing argument" not in result.output
+
+    def test_extract_metadata_force_flag(self):
+        """Test that --force flag is properly parsed."""
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            test_dir = os.path.abspath("test_music")
+            os.makedirs(test_dir)
+
+            result = runner.invoke(cli, ["extract-metadata", "--force", test_dir])
+            # Test will need to check force flag is passed to processing function
+            assert "Missing argument" not in result.output
+
+    def test_extract_metadata_template_only_flag(self):
+        """Test that --template-only flag is properly parsed."""
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            test_dir = os.path.abspath("test_music")
+            os.makedirs(test_dir)
+
+            result = runner.invoke(
+                cli, ["extract-metadata", "--template-only", test_dir]
+            )
+            # Test will need to check template-only flag is passed to processing function
+            assert "Missing argument" not in result.output
+
+    def test_extract_metadata_help(self):
+        """Test that extract-metadata command shows proper help."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["extract-metadata", "--help"])
+        assert result.exit_code == 0
+        assert "Generate metadata.txt files" in result.output
+        assert "--force" in result.output
+        assert "--template-only" in result.output
+
+
+class TestMetadataExtraction:
+    """Tests for metadata extraction functionality."""
+
+    def test_discover_audio_files_sorted(self):
+        """Test that audio files are discovered and sorted alphabetically."""
+        from music_librarian.cli import discover_and_sort_audio_files
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create test files in non-alphabetical order
+            test_files = ["03-track.flac", "01-track.wav", "02-track.mp3"]
+            for filename in test_files:
+                Path(temp_dir) / filename
+                (Path(temp_dir) / filename).touch()
+
+            result = discover_and_sort_audio_files(temp_dir)
+            expected = [
+                Path("01-track.wav"),
+                Path("02-track.mp3"),
+                Path("03-track.flac"),
+            ]
+            assert result == expected
+
+    def test_extract_metadata_from_audio_file(self):
+        """Test extracting metadata from a single audio file."""
+        from music_librarian.cli import extract_metadata_from_file
+
+        # This will test the interface - real implementation will need actual audio files
+        metadata = extract_metadata_from_file("test.flac")
+
+        # Should return dict with expected keys
+        assert isinstance(metadata, dict)
+        expected_keys = ["title", "artist", "album", "date", "track number"]
+        for key in expected_keys:
+            assert key in metadata or metadata.get(key) is not None
+
+    def test_generate_metadata_template_basic(self):
+        """Test generating basic metadata.txt template."""
+        from music_librarian.cli import generate_metadata_template
+
+        audio_files = [Path("01-track.flac"), Path("02-track.wav")]
+        album_metadata = {
+            "title": "Test Album",
+            "artist": "Test Artist",
+            "date": "2023",
+        }
+        file_metadata = {
+            "01-track.flac": {"title": "Track 1", "track number": "01"},
+            "02-track.wav": {"title": "Track 2", "track number": "02"},
+        }
+
+        result = generate_metadata_template(audio_files, album_metadata, file_metadata)
+
+        # Check that template includes comments and sections
+        assert "# This file contains metadata overrides" in result
+        assert "# Album metadata" in result
+        assert "title: Test Album" in result
+        assert "file: 01-track.flac:" in result
+        assert "file: 02-track.wav:" in result
+
+    def test_generate_metadata_template_empty(self):
+        """Test generating empty template with --template-only."""
+        from music_librarian.cli import generate_metadata_template
+
+        audio_files = [Path("track.flac")]
+        album_metadata = {}
+        file_metadata = {}
+
+        result = generate_metadata_template(
+            audio_files, album_metadata, file_metadata, template_only=True
+        )
+
+        # Should include comments and empty sections
+        assert "# This file contains metadata overrides" in result
+        assert "title:" in result
+        assert "artist:" in result
+        assert "file: track.flac:" in result
+
+    def test_extract_metadata_no_audio_files_error(self):
+        """Test that processing fails when no audio files are found."""
+        from music_librarian.cli import extract_metadata_from_directory
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create directory with no audio files
+            (Path(temp_dir) / "readme.txt").touch()
+
+            with pytest.raises(ValueError, match="No audio files found"):
+                extract_metadata_from_directory(temp_dir)
+
+    def test_extract_metadata_existing_file_without_force(self):
+        """Test that existing metadata.txt is not overwritten without --force."""
+        from music_librarian.cli import extract_metadata_from_directory
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create audio file and existing metadata.txt
+            (Path(temp_dir) / "track.flac").touch()
+            metadata_file = Path(temp_dir) / "metadata.txt"
+            metadata_file.write_text("existing content")
+
+            # Should skip existing file
+            result = extract_metadata_from_directory(temp_dir, force=False)
+            assert "skipped" in result
+            assert metadata_file.read_text() == "existing content"
+
+    def test_extract_metadata_existing_file_with_force(self):
+        """Test that existing metadata.txt is overwritten with --force."""
+        from music_librarian.cli import extract_metadata_from_directory
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create audio file and existing metadata.txt
+            (Path(temp_dir) / "track.flac").touch()
+            metadata_file = Path(temp_dir) / "metadata.txt"
+            metadata_file.write_text("existing content")
+
+            # Should overwrite existing file
+            result = extract_metadata_from_directory(temp_dir, force=True)
+            assert "processed" in result
+            assert metadata_file.read_text() != "existing content"
+
+    def test_extract_metadata_with_nested_album_directories(self):
+        """Test NEW behavior: creates metadata.txt in each directory with audio files."""
+        from music_librarian.cli import extract_metadata_from_directory
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create artist directory with multiple albums
+            artist_dir = Path(temp_dir) / "Pink Floyd"
+            album1_dir = artist_dir / "Dark Side of the Moon"
+            album2_dir = artist_dir / "Wish You Were Here"
+
+            album1_dir.mkdir(parents=True)
+            album2_dir.mkdir(parents=True)
+
+            # Create audio files in each album directory
+            (album1_dir / "01-speak_to_me.flac").touch()
+            (album1_dir / "02-breathe.flac").touch()
+            (album2_dir / "01-shine_on.flac").touch()
+            (album2_dir / "02-wish_you_were_here.flac").touch()
+
+            # Also put some files in the artist root directory
+            (artist_dir / "compilation_track.flac").touch()
+
+            # Process the artist directory
+            result = extract_metadata_from_directory(str(artist_dir))
+
+            # NEW BEHAVIOR: Creates metadata.txt in each directory that contains audio files
+            # Should process 3 directories: artist root, album1, album2
+            assert result["processed"] == 3
+            assert (artist_dir / "metadata.txt").exists()
+            assert (album1_dir / "metadata.txt").exists()
+            assert (album2_dir / "metadata.txt").exists()
+
+            # Each metadata.txt should contain only files from its own directory
+            artist_content = (artist_dir / "metadata.txt").read_text()
+            assert "compilation_track.flac" in artist_content
+            assert (
+                "speak_to_me" not in artist_content
+            )  # Should not include subdirectory files
+
+            album1_content = (album1_dir / "metadata.txt").read_text()
+            assert "01-speak_to_me.flac" in album1_content
+            assert "02-breathe.flac" in album1_content
+            assert (
+                "compilation_track" not in album1_content
+            )  # Should not include parent files
+
+            album2_content = (album2_dir / "metadata.txt").read_text()
+            assert "01-shine_on.flac" in album2_content
+            assert "02-wish_you_were_here.flac" in album2_content
+            assert (
+                "compilation_track" not in album2_content
+            )  # Should not include parent files
+
+    def test_extract_metadata_only_subdirectories_no_root_files(self):
+        """Test NEW behavior: creates metadata.txt only in subdirectories with audio files."""
+        from music_librarian.cli import extract_metadata_from_directory
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create artist directory with albums but no files in root
+            artist_dir = Path(temp_dir) / "Pink Floyd"
+            album1_dir = artist_dir / "Dark Side of the Moon"
+            album2_dir = artist_dir / "Wish You Were Here"
+
+            album1_dir.mkdir(parents=True)
+            album2_dir.mkdir(parents=True)
+
+            # Create audio files only in subdirectories
+            (album1_dir / "01-speak_to_me.flac").touch()
+            (album2_dir / "01-shine_on.flac").touch()
+
+            # Process the artist directory
+            # NEW BEHAVIOR: Creates metadata.txt only in directories that contain audio files
+            result = extract_metadata_from_directory(str(artist_dir))
+
+            assert result["processed"] == 2  # Two album directories processed
+            assert not (
+                artist_dir / "metadata.txt"
+            ).exists()  # No files in root, so no metadata.txt
+            assert (album1_dir / "metadata.txt").exists()
+            assert (album2_dir / "metadata.txt").exists()
+
+            # Each metadata.txt should contain only files from its own directory
+            album1_content = (album1_dir / "metadata.txt").read_text()
+            assert "01-speak_to_me.flac" in album1_content
+            assert (
+                "shine_on" not in album1_content
+            )  # Should not include other album files
+
+            album2_content = (album2_dir / "metadata.txt").read_text()
+            assert "01-shine_on.flac" in album2_content
+            assert (
+                "speak_to_me" not in album2_content
+            )  # Should not include other album files
+
+    def test_extract_metadata_per_album_recursive_processing(self):
+        """Test that metadata.txt files are created for each directory containing audio files."""
+        from music_librarian.cli import extract_metadata_from_directory
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create Pink Floyd directory structure as described
+            pf_dir = Path(temp_dir) / "Pink Floyd"
+            dsotm_dir = pf_dir / "The Dark Side of the Moon"
+            wywh_dir = pf_dir / "Wish You Were Here - Immersion Box Set"
+            disc1_dir = wywh_dir / "Disc 1"
+            disc2_dir = wywh_dir / "Disc 2"
+
+            # Create all directories
+            disc1_dir.mkdir(parents=True)
+            disc2_dir.mkdir(parents=True)
+            dsotm_dir.mkdir(parents=True)
+
+            # Create audio files in each "album" directory
+            (pf_dir / "Daybreak.mp3").touch()
+            (dsotm_dir / "01 - Speak to Me.flac").touch()
+            (dsotm_dir / "02 - Breathe.flac").touch()
+            (disc1_dir / "01 - Shine On You Crazy Diamond.flac").touch()
+            (disc1_dir / "02 - Welcome to the Machine.flac").touch()
+            (
+                disc2_dir / "Shine On You Crazy Diamond (Live At Wembley 1974).flac"
+            ).touch()
+
+            # Process the Pink Floyd directory
+            result = extract_metadata_from_directory(str(pf_dir))
+
+            # Should create metadata.txt in each directory that directly contains audio files
+            assert result["processed"] == 4  # 4 album directories processed
+            assert result["skipped"] == 0
+            assert len(result["errors"]) == 0
+
+            # Verify metadata.txt files were created in correct locations
+            assert (pf_dir / "metadata.txt").exists()
+            assert (dsotm_dir / "metadata.txt").exists()
+            assert (disc1_dir / "metadata.txt").exists()
+            assert (disc2_dir / "metadata.txt").exists()
+
+            # Verify NO metadata.txt files were created in intermediate directories
+            assert not (wywh_dir / "metadata.txt").exists()
+
+            # Verify each metadata.txt contains only files from its own directory
+            pf_content = (pf_dir / "metadata.txt").read_text()
+            assert "Daybreak.mp3" in pf_content
+            assert (
+                "Speak to Me" not in pf_content
+            )  # Should not include subdirectory files
+
+            dsotm_content = (dsotm_dir / "metadata.txt").read_text()
+            assert "01 - Speak to Me.flac" in dsotm_content
+            assert "02 - Breathe.flac" in dsotm_content
+            assert (
+                "Daybreak.mp3" not in dsotm_content
+            )  # Should not include parent dir files
+
+    def test_extract_metadata_mixed_structure_with_empty_dirs(self):
+        """Test processing with directories that don't contain audio files."""
+        from music_librarian.cli import extract_metadata_from_directory
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create structure with some empty directories
+            artist_dir = Path(temp_dir) / "Artist"
+            album_dir = artist_dir / "Album"
+            empty_dir = artist_dir / "Empty Dir"
+            another_album = artist_dir / "Another Album"
+
+            album_dir.mkdir(parents=True)
+            empty_dir.mkdir(parents=True)
+            another_album.mkdir(parents=True)
+
+            # Only put audio files in some directories
+            (album_dir / "track1.flac").touch()
+            (another_album / "track1.wav").touch()
+            # empty_dir has no audio files
+            (empty_dir / "readme.txt").touch()  # Non-audio file
+
+            result = extract_metadata_from_directory(str(artist_dir))
+
+            # Should only process directories that contain audio files
+            assert result["processed"] == 2
+            assert (album_dir / "metadata.txt").exists()
+            assert (another_album / "metadata.txt").exists()
+            assert not (empty_dir / "metadata.txt").exists()
+            assert not (artist_dir / "metadata.txt").exists()  # No direct audio files
+
+    def test_extract_metadata_deeply_nested_structure(self):
+        """Test processing with deeply nested album structure."""
+        from music_librarian.cli import extract_metadata_from_directory
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create deeply nested structure
+            level1 = Path(temp_dir) / "Artists"
+            level2 = level1 / "Pink Floyd"
+            level3 = level2 / "Box Sets"
+            level4 = level3 / "Immersion"
+            level5 = level4 / "Dark Side of the Moon"
+            level6 = level5 / "Disc 1"
+
+            level6.mkdir(parents=True)
+
+            # Put audio files at different levels
+            (level1 / "compilation.mp3").touch()  # Artists/ level
+            (level3 / "rare_track.flac").touch()  # Box Sets/ level
+            (level6 / "track1.flac").touch()  # Disc 1/ level
+
+            result = extract_metadata_from_directory(str(level1))
+
+            # Should create metadata.txt in each directory with direct audio files
+            assert result["processed"] == 3
+            assert (level1 / "metadata.txt").exists()
+            assert (level3 / "metadata.txt").exists()
+            assert (level6 / "metadata.txt").exists()
+
+            # Should NOT create in intermediate directories without direct audio files
+            assert not (level2 / "metadata.txt").exists()
+            assert not (level4 / "metadata.txt").exists()
+            assert not (level5 / "metadata.txt").exists()

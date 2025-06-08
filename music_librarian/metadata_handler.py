@@ -19,8 +19,53 @@ def supports_format(extension: str) -> bool:
     Returns:
         True if format is supported, False otherwise
     """
-    supported_extensions = {"mp3", "ogg", "aac", "m4a", "opus"}
+    supported_extensions = {"mp3", "ogg", "aac", "m4a", "opus", "flac", "wav"}
     return extension.lower() in supported_extensions
+
+
+def read_metadata_from_file(file_path: str) -> Dict[str, str]:
+    """Read metadata from an audio file.
+
+    Args:
+        file_path: Path to the audio file
+
+    Returns:
+        Dictionary of metadata fields
+
+    Raises:
+        ValueError: If file format is not supported
+        IOError: If file cannot be read
+    """
+    if not os.path.exists(file_path):
+        raise IOError(f"File does not exist: {file_path}")
+
+    path = Path(file_path)
+    extension = path.suffix.lower().lstrip(".")
+
+    if not supports_format(extension):
+        raise ValueError(f"Unsupported format: {extension}")
+
+    # Load the audio file
+    audio_file = mutagen.File(file_path)
+    if audio_file is None:
+        raise IOError(f"Could not load audio file: {file_path}")
+
+    # Extract metadata based on file type
+    metadata = {}
+
+    if isinstance(audio_file, MP3):
+        metadata = _read_mp3_metadata(audio_file)
+    elif isinstance(audio_file, OggVorbis):
+        metadata = _read_ogg_metadata(audio_file)
+    elif isinstance(audio_file, MP4):
+        metadata = _read_mp4_metadata(audio_file)
+    elif isinstance(audio_file, OggOpus):
+        metadata = _read_opus_metadata(audio_file)
+    else:
+        # Try generic approach for other formats (FLAC, etc.)
+        metadata = _read_generic_metadata(audio_file)
+
+    return metadata
 
 
 def apply_metadata_to_file(file_path: str, metadata: Dict[str, Any]) -> None:
@@ -158,3 +203,111 @@ def _apply_generic_metadata(audio_file: Any, metadata: Dict[str, Any]) -> None:
                     break  # Use first successful tag
                 except:
                     continue
+
+
+def _read_mp3_metadata(audio_file: MP3) -> Dict[str, str]:
+    """Read metadata from MP3 file using ID3 tags."""
+    metadata = {}
+
+    if audio_file.tags is not None:
+        # Map ID3 frames to our metadata fields
+        tag_mapping = {
+            "TIT2": "title",
+            "TPE1": "artist",
+            "TALB": "album",
+            "TDRC": "date",
+            "TRCK": "track number",
+            "TPE2": "albumartist",
+        }
+
+        for frame_id, field in tag_mapping.items():
+            if frame_id in audio_file.tags:
+                value = str(audio_file.tags[frame_id])
+                metadata[field] = value
+
+    return metadata
+
+
+def _read_ogg_metadata(audio_file: OggVorbis) -> Dict[str, str]:
+    """Read metadata from OGG Vorbis file using Vorbis comments."""
+    metadata = {}
+
+    # Map Vorbis comment names to our metadata fields
+    tag_mapping = {
+        "TITLE": "title",
+        "ARTIST": "artist",
+        "ALBUM": "album",
+        "DATE": "date",
+        "TRACKNUMBER": "track number",
+        "ALBUMARTIST": "albumartist",
+    }
+
+    for vorbis_tag, field in tag_mapping.items():
+        if vorbis_tag in audio_file:
+            # Vorbis comments are lists
+            value = str(audio_file[vorbis_tag][0])
+            metadata[field] = value
+
+    return metadata
+
+
+def _read_mp4_metadata(audio_file: MP4) -> Dict[str, str]:
+    """Read metadata from MP4/AAC file using iTunes-style tags."""
+    metadata = {}
+
+    # Map MP4 atom names to our metadata fields
+    tag_mapping = {
+        "©nam": "title",
+        "©ART": "artist",
+        "©alb": "album",
+        "©day": "date",
+        "trkn": "track number",
+        "aART": "albumartist",
+    }
+
+    for mp4_tag, field in tag_mapping.items():
+        if mp4_tag in audio_file:
+            if field == "track number":
+                # Track number is a tuple (track, total)
+                value = str(audio_file[mp4_tag][0][0])
+            else:
+                value = str(audio_file[mp4_tag][0])
+            metadata[field] = value
+
+    return metadata
+
+
+def _read_opus_metadata(audio_file: OggOpus) -> Dict[str, str]:
+    """Read metadata from Opus file using Vorbis comments."""
+    # Opus uses same comment format as OGG Vorbis
+    return _read_ogg_metadata(audio_file)
+
+
+def _read_generic_metadata(audio_file: Any) -> Dict[str, str]:
+    """Read metadata using generic mutagen approach."""
+    metadata = {}
+
+    # Try common tag names
+    tag_mapping = {
+        "title": ["TITLE", "TIT2"],
+        "artist": ["ARTIST", "TPE1"],
+        "album": ["ALBUM", "TALB"],
+        "date": ["DATE", "TDRC"],
+        "track number": ["TRACKNUMBER", "TRCK"],
+        "albumartist": ["ALBUMARTIST", "TPE2"],
+    }
+
+    for field, possible_tags in tag_mapping.items():
+        for tag in possible_tags:
+            if tag in audio_file:
+                try:
+                    value = str(audio_file[tag])
+                    # Handle list values (common in some formats)
+                    if isinstance(audio_file[tag], list):
+                        value = str(audio_file[tag][0])
+                    metadata[field] = value
+                    break  # Use first successful tag
+                except:
+                    continue
+
+    return metadata
