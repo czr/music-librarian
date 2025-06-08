@@ -1,6 +1,6 @@
 [project]
 name = "music-librarian"
-version = "1.0.1"
+version = "1.1.0"
 description = "Music Librarian is CZR's opinionated music manager."
 readme = "README.md"
 authors = [{name = "Colin Z. Robertson"}]
