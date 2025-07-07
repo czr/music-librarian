@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import shutil
+import unicodedata
 from pathlib import Path
 import click
 
@@ -271,8 +272,12 @@ def validate_metadata_files(metadata, available_files):
     Raises:
         ValueError: If a referenced file doesn't exist
     """
+    # Normalize available filenames for comparison
+    normalized_available = {unicodedata.normalize("NFD", f) for f in available_files}
+
     for filename in metadata["files"]:
-        if filename not in available_files:
+        normalized_filename = unicodedata.normalize("NFD", filename)
+        if normalized_filename not in normalized_available:
             raise ValueError(
                 f"File '{filename}' referenced in metadata.txt does not exist"
             )

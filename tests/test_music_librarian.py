@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import unicodedata
 from pathlib import Path
 import pytest
 from click.testing import CliRunner
@@ -393,6 +394,76 @@ title: This should be parsed
         }
 
         available_files = ["track1.flac", "track2.wav", "extra.flac"]
+
+        # Should not raise any error
+        validate_metadata_files(metadata, available_files)
+
+    def test_validate_unicode_filenames_nfd_nfc_mismatch(self):
+        """Test validation with Unicode filenames that have NFD/NFC normalization differences."""
+        from music_librarian.cli import validate_metadata_files
+
+        # Create a filename with accented characters
+        # NFD (decomposed) form: 'u' + combining umlaut
+        filename_nfd = "04-THYX-Fu\u0308rImmer.flac"
+        # NFC (composed) form: 'ü' as single character
+        filename_nfc = "04-THYX-FürImmer.flac"
+
+        # Verify they are different byte sequences but same visual representation
+        assert filename_nfd != filename_nfc
+        assert unicodedata.normalize("NFD", filename_nfd) == unicodedata.normalize(
+            "NFD", filename_nfc
+        )
+
+        metadata = {
+            "album": {"title": "Test Album"},
+            "files": {
+                filename_nfd: {"title": "Unicode Track"},
+            },
+        }
+
+        # Available files list has the NFC form (as might happen on different filesystems)
+        available_files = [filename_nfc]
+
+        # Should not raise any error due to normalization
+        validate_metadata_files(metadata, available_files)
+
+    def test_validate_unicode_filenames_still_missing(self):
+        """Test validation with Unicode filenames that are genuinely missing."""
+        from music_librarian.cli import validate_metadata_files
+
+        metadata = {
+            "album": {"title": "Test Album"},
+            "files": {
+                "04-THYX-FürImmer.flac": {"title": "Unicode Track"},
+                "existing.flac": {"title": "Normal Track"},
+            },
+        }
+
+        # Available files list doesn't have the Unicode file
+        available_files = ["existing.flac", "other.wav"]
+
+        # Should raise error for missing Unicode file
+        with pytest.raises(ValueError, match="04-THYX-FürImmer.flac"):
+            validate_metadata_files(metadata, available_files)
+
+    def test_validate_unicode_filenames_all_exist(self):
+        """Test validation passes when all Unicode files exist."""
+        from music_librarian.cli import validate_metadata_files
+
+        metadata = {
+            "album": {"title": "Test Album"},
+            "files": {
+                "track_with_unicode_文件名.flac": {"title": "Chinese Track"},
+                "04-THYX-FürImmer.flac": {"title": "German Track"},
+                "normal_track.flac": {"title": "Normal Track"},
+            },
+        }
+
+        available_files = [
+            "track_with_unicode_文件名.flac",
+            "04-THYX-FürImmer.flac",
+            "normal_track.flac",
+        ]
 
         # Should not raise any error
         validate_metadata_files(metadata, available_files)
