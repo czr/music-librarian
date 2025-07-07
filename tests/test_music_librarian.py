@@ -682,6 +682,138 @@ class TestOpusencIntegration:
 
         assert result == expected
 
+    def test_merge_metadata_with_source_file_metadata(self):
+        """Test merging source file metadata with metadata.txt overrides."""
+        from music_librarian.cli import merge_metadata
+        from unittest.mock import patch
+
+        # Mock source file metadata
+        source_metadata = {
+            "title": "Original Title",
+            "artist": "Original Artist",
+            "album": "Original Album",
+            "date": "2020",
+            "genre": "Rock",
+        }
+
+        album_metadata = {
+            "title": "Album Title",
+            "artist": "Album Artist",
+            "date": "2023",
+        }
+
+        file_metadata = {"title": "Track Title", "track number": "01"}
+
+        filename = "track.flac"
+
+        # Mock the metadata reading function
+        with patch(
+            "music_librarian.metadata_handler.read_metadata_from_file"
+        ) as mock_read:
+            mock_read.return_value = source_metadata
+
+            result = merge_metadata(
+                album_metadata, file_metadata, filename, "/fake/path/track.flac"
+            )
+
+        # Expected: source metadata is base, album metadata overrides some fields,
+        # file metadata overrides specific fields
+        expected = {
+            "title": "Track Title",  # From file metadata (highest priority)
+            "artist": "Album Artist",  # From album metadata
+            "album": "Album Title",  # From album metadata (title -> album mapping)
+            "date": "2023",  # From album metadata
+            "genre": "Rock",  # From source metadata (preserved)
+            "track number": "01",  # From file metadata
+        }
+
+        assert result == expected
+
+    def test_merge_metadata_source_file_override_replacement(self):
+        """Test that metadata.txt completely replaces source file tags."""
+        from music_librarian.cli import merge_metadata
+        from unittest.mock import patch
+
+        # Source file has multiple artists (the original problem case)
+        source_metadata = {
+            "title": "Original Title",
+            "artist": "Original Artist",
+            "album": "Original Album",
+        }
+
+        album_metadata = {}
+
+        file_metadata = {
+            "artist": "New Artist"  # This should completely replace the source artist
+        }
+
+        filename = "track.flac"
+
+        with patch(
+            "music_librarian.metadata_handler.read_metadata_from_file"
+        ) as mock_read:
+            mock_read.return_value = source_metadata
+
+            result = merge_metadata(
+                album_metadata, file_metadata, filename, "/fake/path/track.flac"
+            )
+
+        # The source artist should be completely replaced, not added to
+        expected = {
+            "title": "Original Title",  # From source (unchanged)
+            "artist": "New Artist",  # From file metadata (replaces source)
+            "album": "Original Album",  # From source (unchanged)
+        }
+
+        assert result == expected
+
+    def test_merge_metadata_no_source_file_fallback(self):
+        """Test that merge_metadata works when source file can't be read."""
+        from music_librarian.cli import merge_metadata
+        from unittest.mock import patch
+
+        album_metadata = {"title": "Album Title", "artist": "Album Artist"}
+        file_metadata = {"title": "Track Title"}
+        filename = "track.flac"
+
+        # Mock metadata reading to raise an exception
+        with patch(
+            "music_librarian.metadata_handler.read_metadata_from_file"
+        ) as mock_read:
+            mock_read.side_effect = Exception("Cannot read file")
+
+            result = merge_metadata(
+                album_metadata, file_metadata, filename, "/fake/path/track.flac"
+            )
+
+        # Should work exactly like the old behavior when source file can't be read
+        expected = {
+            "album": "Album Title",
+            "artist": "Album Artist",
+            "title": "Track Title",
+        }
+
+        assert result == expected
+
+    def test_merge_metadata_source_file_path_none(self):
+        """Test that merge_metadata works when no source file path is provided."""
+        from music_librarian.cli import merge_metadata
+
+        album_metadata = {"title": "Album Title", "artist": "Album Artist"}
+        file_metadata = {"title": "Track Title"}
+        filename = "track.flac"
+
+        result = merge_metadata(album_metadata, file_metadata, filename, None)
+
+        # Should work exactly like the old behavior when no source file path provided
+        expected = {
+            "album": "Album Title",
+            "artist": "Album Artist",
+            "title": "Track Title",
+        }
+
+        assert result == expected
+
 
 class TestReplayGainIntegration:
     """Tests for ReplayGain processing with rsgain."""

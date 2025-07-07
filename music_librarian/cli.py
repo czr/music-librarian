@@ -377,27 +377,40 @@ def build_opusenc_command(input_file, output_file, quality=None, metadata=None):
     return cmd
 
 
-def merge_metadata(album_metadata, file_metadata, filename):
-    """Merge album and file-specific metadata according to spec rules.
+def merge_metadata(album_metadata, file_metadata, filename, source_file_path=None):
+    """Merge source file, album, and file-specific metadata according to spec rules.
 
     Args:
         album_metadata: Dict of album-wide metadata
         file_metadata: Dict of file-specific metadata overrides
         filename: Name of the file being processed
+        source_file_path: Path to source file for extracting existing metadata
 
     Returns:
         Dict of merged metadata for opusenc
     """
     result = {}
 
-    # Start with album metadata, mapping title -> album
+    # Start with source file metadata if available
+    if source_file_path:
+        from music_librarian.metadata_handler import read_metadata_from_file
+
+        try:
+            source_metadata = read_metadata_from_file(source_file_path)
+            if source_metadata:
+                result.update(source_metadata)
+        except Exception:
+            # If we can't read source metadata, continue without it
+            pass
+
+    # Apply album metadata, mapping title -> album
     for key, value in album_metadata.items():
         if key == "title":
             result["album"] = value
         else:
             result[key] = value
 
-    # Apply file-specific overrides
+    # Apply file-specific overrides (these completely replace any existing values)
     for key, value in file_metadata.items():
         if key == "artist" and "artist" in album_metadata:
             # When overriding artist, preserve album artist
@@ -519,7 +532,7 @@ def process_directory(source_dir, dest_dir, force=False):
             # Merge metadata for this file
             file_metadata = metadata["files"].get(str(audio_file), {})
             merged_metadata = merge_metadata(
-                metadata["album"], file_metadata, str(audio_file)
+                metadata["album"], file_metadata, str(audio_file), input_path
             )
 
             # Process the file (transcode or copy based on type)
