@@ -330,51 +330,34 @@ def build_opusenc_command(input_file, output_file, quality=None, metadata=None):
     if quality:
         cmd.extend(["--bitrate", str(quality)])
 
-    # Add metadata comments if specified
+    # Discard existing metadata from source file to ensure clean replacement
+    cmd.append("--discard-comments")
+
+    # Add metadata using specific opusenc options
     if metadata:
         for key, value in metadata.items():
-            # Convert metadata key to opus comment format
-            comment_key = key.upper().replace(" ", "")
-            # Handle special cases
-            if comment_key == "TRACKNUMBER":
-                comment_key = "TRACKNUMBER"
-            elif key == "title" and "album" in metadata:
-                # Track title vs album title
-                comment_key = "TITLE"
-            elif key == "title":
-                # Album title
-                comment_key = "ALBUM" if key == "title" else "TITLE"
-
-            # Map common fields
-            field_mapping = {
-                "TITLE": "TITLE",
-                "ARTIST": "ARTIST",
-                "ALBUM": "ALBUM",
-                "DATE": "DATE",
-                "TRACKNUMBER": "TRACKNUMBER",
-                "ALBUMARTIST": "ALBUMARTIST",
-            }
-
-            # Use direct key mapping for known fields
-            if key == "title":
-                opus_key = "TITLE"
-            elif key == "artist":
-                opus_key = "ARTIST"
-            elif key == "album":
-                opus_key = "ALBUM"
-            elif key == "date":
-                opus_key = "DATE"
-            elif key == "track number":
-                opus_key = "TRACKNUMBER"
-            elif key == "albumartist":
-                opus_key = "ALBUMARTIST"
-            elif key == "cover":
-                # Skip cover field - it's for file operations, not audio metadata
+            # Skip empty values and cover field
+            if not value or key == "cover":
                 continue
-            else:
-                opus_key = key.upper().replace(" ", "")
 
-            cmd.extend(["--comment", f"{opus_key}={value}"])
+            # Use specific opusenc options for known fields
+            if key == "title":
+                cmd.extend(["--title", value])
+            elif key == "artist":
+                cmd.extend(["--artist", value])
+            elif key == "album":
+                cmd.extend(["--album", value])
+            elif key == "date":
+                cmd.extend(["--date", value])
+            elif key == "track number":
+                cmd.extend(["--tracknumber", value])
+            elif key == "albumartist":
+                # Use comment for albumartist since there's no specific option
+                cmd.extend(["--comment", f"ALBUMARTIST={value}"])
+            else:
+                # Fall back to comment for other fields
+                opus_key = key.upper().replace(" ", "")
+                cmd.extend(["--comment", f"{opus_key}={value}"])
 
     cmd.extend([input_file, output_file])
     return cmd

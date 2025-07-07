@@ -503,7 +503,12 @@ class TestOpusencIntegration:
 
         result = build_opusenc_command(input_file, output_file)
 
-        expected = ["opusenc", "/source/track.flac", "/dest/track.opus"]
+        expected = [
+            "opusenc",
+            "--discard-comments",
+            "/source/track.flac",
+            "/dest/track.opus",
+        ]
 
         assert result == expected
 
@@ -521,6 +526,7 @@ class TestOpusencIntegration:
             "opusenc",
             "--bitrate",
             "192",
+            "--discard-comments",
             "/source/track.flac",
             "/dest/track.opus",
         ]
@@ -545,16 +551,17 @@ class TestOpusencIntegration:
 
         expected = [
             "opusenc",
-            "--comment",
-            "TITLE=Track Title",
-            "--comment",
-            "ARTIST=Artist Name",
-            "--comment",
-            "ALBUM=Album Title",
-            "--comment",
-            "DATE=2023",
-            "--comment",
-            "TRACKNUMBER=01",
+            "--discard-comments",
+            "--title",
+            "Track Title",
+            "--artist",
+            "Artist Name",
+            "--album",
+            "Album Title",
+            "--date",
+            "2023",
+            "--tracknumber",
+            "01",
             "/source/track.flac",
             "/dest/track.opus",
         ]
@@ -578,10 +585,11 @@ class TestOpusencIntegration:
             "opusenc",
             "--bitrate",
             "128",
-            "--comment",
-            "TITLE=Test Track",
-            "--comment",
-            "ARTIST=Test Artist",
+            "--discard-comments",
+            "--title",
+            "Test Track",
+            "--artist",
+            "Test Artist",
             "/source/track.flac",
             "/dest/track.opus",
         ]
@@ -600,10 +608,9 @@ class TestOpusencIntegration:
 
         expected = [
             "opusenc",
-            "--comment",
-            "TITLE=",
-            "--comment",
-            "ARTIST=Artist Name",
+            "--discard-comments",
+            "--artist",
+            "Artist Name",
             "/source/track.flac",
             "/dest/track.opus",
         ]
