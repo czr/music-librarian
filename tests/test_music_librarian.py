@@ -1857,3 +1857,281 @@ class TestMetadataExtraction:
             assert not (level2 / "metadata.txt").exists()
             assert not (level4 / "metadata.txt").exists()
             assert not (level5 / "metadata.txt").exists()
+
+
+class TestCoverMetadataHandling:
+    """Tests for cover image metadata handling in extract-metadata and export."""
+
+    def test_extract_metadata_adds_cover_field_with_existing_cover(self):
+        """Test that extract-metadata adds cover field when recognizable cover exists."""
+        from music_librarian.cli import extract_metadata_from_directory
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create test files
+            (temp_path / "track1.flac").write_bytes(b"fake flac data")
+            (temp_path / "cover.jpg").write_bytes(b"fake jpg data")
+
+            # Run extract-metadata
+            result = extract_metadata_from_directory(str(temp_path), force=True)
+
+            # Check that metadata.txt was created and contains cover field
+            metadata_file = temp_path / "metadata.txt"
+            assert metadata_file.exists()
+
+            content = metadata_file.read_text()
+            assert "cover: cover.jpg" in content
+            assert result["processed"] == 1
+
+    def test_extract_metadata_adds_blank_cover_field_when_no_cover(self):
+        """Test that extract-metadata adds blank cover field when no recognizable cover exists."""
+        from music_librarian.cli import extract_metadata_from_directory
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create test files without recognizable cover
+            (temp_path / "track1.flac").write_bytes(b"fake flac data")
+            (temp_path / "randomimage.jpg").write_bytes(b"fake jpg data")
+
+            # Run extract-metadata
+            result = extract_metadata_from_directory(str(temp_path), force=True)
+
+            # Check that metadata.txt was created and contains blank cover field
+            metadata_file = temp_path / "metadata.txt"
+            assert metadata_file.exists()
+
+            content = metadata_file.read_text()
+            assert "cover:" in content
+            assert "cover: randomimage.jpg" not in content
+            assert result["processed"] == 1
+
+    def test_extract_metadata_prioritizes_cover_files(self):
+        """Test that extract-metadata prioritizes standard cover files over others."""
+        from music_librarian.cli import extract_metadata_from_directory
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create test files with multiple potential covers
+            (temp_path / "track1.flac").write_bytes(b"fake flac data")
+            (temp_path / "folder.jpg").write_bytes(b"fake jpg data")
+            (temp_path / "cover.png").write_bytes(b"fake png data")
+
+            # Run extract-metadata
+            result = extract_metadata_from_directory(str(temp_path), force=True)
+
+            # Check that metadata.txt prioritizes cover.png over folder.jpg
+            metadata_file = temp_path / "metadata.txt"
+            content = metadata_file.read_text()
+            assert "cover: cover.png" in content
+            assert "cover: folder.jpg" not in content
+
+    def test_export_copies_and_renames_cover_from_metadata(self):
+        """Test that export copies and renames cover file specified in metadata."""
+        from music_librarian.cli import process_directory
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        import os
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source_dir = temp_path / "source"
+            dest_dir = temp_path / "dest"
+            source_dir.mkdir()
+            dest_dir.mkdir()
+
+            # Create test files
+            (source_dir / "track1.flac").write_bytes(b"fake flac data")
+            (source_dir / "AlbumArtwork.jpg").write_bytes(b"fake jpg data")
+
+            # Create metadata.txt with cover specification
+            metadata_content = """
+title: Test Album
+artist: Test Artist
+cover: AlbumArtwork.jpg
+
+track1.flac
+title: Track 1
+"""
+            (source_dir / "metadata.txt").write_text(metadata_content.strip())
+
+            # Set environment variables
+            os.environ["MUSIC_SOURCE_ROOT"] = str(temp_path)
+            os.environ["MUSIC_DEST_ROOT"] = str(temp_path)
+
+            try:
+                # Run export
+                result = process_directory(str(source_dir), str(dest_dir), force=True)
+
+                # Check that cover was copied and renamed
+                assert (dest_dir / "cover.jpg").exists()
+                assert not (dest_dir / "AlbumArtwork.jpg").exists()
+
+                # Verify content is the same
+                original_content = (source_dir / "AlbumArtwork.jpg").read_bytes()
+                copied_content = (dest_dir / "cover.jpg").read_bytes()
+                assert original_content == copied_content
+
+            finally:
+                # Clean up environment variables
+                if "MUSIC_SOURCE_ROOT" in os.environ:
+                    del os.environ["MUSIC_SOURCE_ROOT"]
+                if "MUSIC_DEST_ROOT" in os.environ:
+                    del os.environ["MUSIC_DEST_ROOT"]
+
+    def test_export_handles_different_cover_extensions(self):
+        """Test that export preserves file extension when renaming cover."""
+        from music_librarian.cli import process_directory
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        import os
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source_dir = temp_path / "source"
+            dest_dir = temp_path / "dest"
+            source_dir.mkdir()
+            dest_dir.mkdir()
+
+            # Create test files
+            (source_dir / "track1.flac").write_bytes(b"fake flac data")
+            (source_dir / "MyCustomCover.png").write_bytes(b"fake png data")
+
+            # Create metadata.txt with cover specification
+            metadata_content = """
+title: Test Album
+artist: Test Artist
+cover: MyCustomCover.png
+
+track1.flac
+title: Track 1
+"""
+            (source_dir / "metadata.txt").write_text(metadata_content.strip())
+
+            # Set environment variables
+            os.environ["MUSIC_SOURCE_ROOT"] = str(temp_path)
+            os.environ["MUSIC_DEST_ROOT"] = str(temp_path)
+
+            try:
+                # Run export
+                result = process_directory(str(source_dir), str(dest_dir), force=True)
+
+                # Check that cover was copied and renamed with correct extension
+                assert (dest_dir / "cover.png").exists()
+                assert not (dest_dir / "MyCustomCover.png").exists()
+
+            finally:
+                # Clean up environment variables
+                if "MUSIC_SOURCE_ROOT" in os.environ:
+                    del os.environ["MUSIC_SOURCE_ROOT"]
+                if "MUSIC_DEST_ROOT" in os.environ:
+                    del os.environ["MUSIC_DEST_ROOT"]
+
+    def test_export_skips_cover_when_not_specified(self):
+        """Test that export uses existing cover art logic when no cover specified in metadata."""
+        from music_librarian.cli import process_directory
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        import os
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source_dir = temp_path / "source"
+            dest_dir = temp_path / "dest"
+            source_dir.mkdir()
+            dest_dir.mkdir()
+
+            # Create test files
+            (source_dir / "track1.flac").write_bytes(b"fake flac data")
+            (source_dir / "cover.jpg").write_bytes(b"fake jpg data")
+
+            # Create metadata.txt WITHOUT cover specification
+            metadata_content = """
+title: Test Album
+artist: Test Artist
+
+track1.flac
+title: Track 1
+"""
+            (source_dir / "metadata.txt").write_text(metadata_content.strip())
+
+            # Set environment variables
+            os.environ["MUSIC_SOURCE_ROOT"] = str(temp_path)
+            os.environ["MUSIC_DEST_ROOT"] = str(temp_path)
+
+            try:
+                # Run export
+                result = process_directory(str(source_dir), str(dest_dir), force=True)
+
+                # Check that existing cover art logic was used
+                assert (dest_dir / "cover.jpg").exists()
+
+            finally:
+                # Clean up environment variables
+                if "MUSIC_SOURCE_ROOT" in os.environ:
+                    del os.environ["MUSIC_SOURCE_ROOT"]
+                if "MUSIC_DEST_ROOT" in os.environ:
+                    del os.environ["MUSIC_DEST_ROOT"]
+
+    def test_export_handles_missing_cover_file_gracefully(self):
+        """Test that export handles missing cover file gracefully."""
+        from music_librarian.cli import process_directory
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        import os
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source_dir = temp_path / "source"
+            dest_dir = temp_path / "dest"
+            source_dir.mkdir()
+            dest_dir.mkdir()
+
+            # Create test files
+            (source_dir / "track1.flac").write_bytes(b"fake flac data")
+
+            # Create metadata.txt with cover specification but no actual file
+            metadata_content = """
+title: Test Album
+artist: Test Artist
+cover: NonExistentCover.jpg
+
+track1.flac
+title: Track 1
+"""
+            (source_dir / "metadata.txt").write_text(metadata_content.strip())
+
+            # Set environment variables
+            os.environ["MUSIC_SOURCE_ROOT"] = str(temp_path)
+            os.environ["MUSIC_DEST_ROOT"] = str(temp_path)
+
+            try:
+                # Run export - should not fail completely
+                result = process_directory(str(source_dir), str(dest_dir), force=True)
+
+                # Check that the cover error was logged
+                cover_errors = [
+                    error
+                    for error in result["errors"]
+                    if "Cover file specified" in error
+                ]
+                assert len(cover_errors) == 1
+                assert "NonExistentCover.jpg" in cover_errors[0]
+
+                # Check that no cover file was created
+                assert not (dest_dir / "cover.jpg").exists()
+
+            finally:
+                # Clean up environment variables
+                if "MUSIC_SOURCE_ROOT" in os.environ:
+                    del os.environ["MUSIC_SOURCE_ROOT"]
+                if "MUSIC_DEST_ROOT" in os.environ:
+                    del os.environ["MUSIC_DEST_ROOT"]

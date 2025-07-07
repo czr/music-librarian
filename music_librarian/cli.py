@@ -368,6 +368,9 @@ def build_opusenc_command(input_file, output_file, quality=None, metadata=None):
                 opus_key = "TRACKNUMBER"
             elif key == "albumartist":
                 opus_key = "ALBUMARTIST"
+            elif key == "cover":
+                # Skip cover field - it's for file operations, not audio metadata
+                continue
             else:
                 opus_key = key.upper().replace(" ", "")
 
@@ -553,41 +556,70 @@ def process_directory(source_dir, dest_dir, force=False):
         except Exception as e:
             errors.append(f"Error processing {audio_file}: {str(e)}")
 
-    # Copy cover art if present - check all directories that contain audio files
+    # Copy cover art if present - check for metadata specification first
     cover_art_copied = False
 
-    # Get unique directories that contain audio files
-    audio_dirs = set()
-    for audio_file in all_audio_files:
-        audio_dir = os.path.dirname(str(audio_file))
-        if audio_dir:  # Only add if there's a subdirectory
-            audio_dirs.add(audio_dir)
-        else:  # Files in root directory
-            audio_dirs.add("")
+    # Check if cover is specified in metadata.txt
+    specified_cover = metadata["album"].get("cover", "").strip()
 
-    # Check each directory for cover art
-    for audio_dir in audio_dirs:
-        source_subdir = os.path.join(source_dir, audio_dir) if audio_dir else source_dir
-        dest_subdir = os.path.join(dest_dir, audio_dir) if audio_dir else dest_dir
+    if specified_cover:
+        # Use cover specified in metadata.txt
+        try:
+            cover_src = os.path.join(source_dir, specified_cover)
+            if os.path.exists(cover_src):
+                # Extract extension and create cover.{ext} filename
+                _, ext = os.path.splitext(specified_cover)
+                cover_dest = os.path.join(dest_dir, f"cover{ext}")
 
-        if os.path.exists(source_subdir):
-            all_files = os.listdir(source_subdir)
-            cover_art = find_cover_art(all_files)
+                if not os.path.exists(cover_dest) or force:
+                    shutil.copy2(cover_src, cover_dest)
+                    cover_art_copied = True
+            else:
+                errors.append(
+                    f"Cover file specified in metadata.txt not found: {specified_cover}"
+                )
+        except Exception as e:
+            errors.append(
+                f"Error copying specified cover art {specified_cover}: {str(e)}"
+            )
+    else:
+        # Fall back to automatic cover art detection
+        # Get unique directories that contain audio files
+        audio_dirs = set()
+        for audio_file in all_audio_files:
+            audio_dir = os.path.dirname(str(audio_file))
+            if audio_dir:  # Only add if there's a subdirectory
+                audio_dirs.add(audio_dir)
+            else:  # Files in root directory
+                audio_dirs.add("")
 
-            if cover_art:
-                try:
-                    cover_src = os.path.join(source_subdir, cover_art)
-                    cover_dest = os.path.join(dest_subdir, cover_art)
+        # Check each directory for cover art
+        for audio_dir in audio_dirs:
+            source_subdir = (
+                os.path.join(source_dir, audio_dir) if audio_dir else source_dir
+            )
+            dest_subdir = os.path.join(dest_dir, audio_dir) if audio_dir else dest_dir
 
-                    # Ensure destination subdirectory exists
-                    os.makedirs(dest_subdir, exist_ok=True)
+            if os.path.exists(source_subdir):
+                all_files = os.listdir(source_subdir)
+                cover_art = find_cover_art(all_files)
 
-                    if not os.path.exists(cover_dest) or force:
-                        # Actually copy the cover art
-                        shutil.copy2(cover_src, cover_dest)
-                        cover_art_copied = True
-                except Exception as e:
-                    errors.append(f"Error copying cover art from {audio_dir}: {str(e)}")
+                if cover_art:
+                    try:
+                        cover_src = os.path.join(source_subdir, cover_art)
+                        cover_dest = os.path.join(dest_subdir, cover_art)
+
+                        # Ensure destination subdirectory exists
+                        os.makedirs(dest_subdir, exist_ok=True)
+
+                        if not os.path.exists(cover_dest) or force:
+                            # Actually copy the cover art
+                            shutil.copy2(cover_src, cover_dest)
+                            cover_art_copied = True
+                    except Exception as e:
+                        errors.append(
+                            f"Error copying cover art from {audio_dir}: {str(e)}"
+                        )
 
     # Run ReplayGain processing if files were processed
     if processed > 0:
@@ -669,7 +701,7 @@ def generate_metadata_template(
 
     # Header comments
     lines.append("# This file contains metadata overrides for the export command")
-    lines.append("# Fields: title, artist, date, track number")
+    lines.append("# Fields: title, artist, date, track number, cover")
     lines.append("# Album-wide fields apply to all tracks unless overridden per-file")
     lines.append("")
 
@@ -681,6 +713,7 @@ def generate_metadata_template(
         lines.append("title:")
         lines.append("artist:")
         lines.append("date:")
+        lines.append("cover:")
     else:
         # Use provided album metadata
         for key, value in album_metadata.items():
@@ -820,6 +853,15 @@ def extract_metadata_from_single_directory(directory, force=False, template_only
                     f"Failed to extract metadata from {audio_files[0]}: {str(e)}"
                 ],
             }
+
+        # Detect cover art in the directory
+        try:
+            all_files_in_dir = [f.name for f in directory_path.iterdir() if f.is_file()]
+            cover_file = find_cover_art(all_files_in_dir)
+            album_metadata["cover"] = cover_file if cover_file else ""
+        except Exception as e:
+            # If cover detection fails, just set empty cover
+            album_metadata["cover"] = ""
 
         # Extract metadata for each file
         for audio_file in audio_files:
