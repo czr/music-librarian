@@ -2142,3 +2142,187 @@ title: Track 1
                     del os.environ["MUSIC_SOURCE_ROOT"]
                 if "MUSIC_DEST_ROOT" in os.environ:
                     del os.environ["MUSIC_DEST_ROOT"]
+
+
+class TestNestedMetadataHandling:
+    """Tests for handling metadata.txt files in nested directory structures."""
+
+    def test_process_nested_albums_with_per_directory_metadata(self):
+        """Test processing nested album directories with individual metadata.txt files."""
+        from music_librarian.cli import process_directory
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        import os
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source_dir = temp_path / "source"
+            dest_dir = temp_path / "dest"
+            source_dir.mkdir()
+            dest_dir.mkdir()
+
+            # Create nested album structure
+            album1_dir = source_dir / "Album 1"
+            album2_dir = source_dir / "Album 2"
+            album1_dir.mkdir()
+            album2_dir.mkdir()
+
+            # Create audio files
+            (album1_dir / "track1.flac").write_bytes(b"fake flac data")
+            (album1_dir / "track2.flac").write_bytes(b"fake flac data")
+            (album2_dir / "track1.flac").write_bytes(b"fake flac data")
+
+            # Create per-directory metadata.txt files
+            album1_metadata = """
+title: First Album
+artist: Artist One
+date: 2020
+
+file: track1.flac:
+title: First Track
+track number: 01
+
+file: track2.flac:
+title: Second Track
+track number: 02
+"""
+            (album1_dir / "metadata.txt").write_text(album1_metadata.strip())
+
+            album2_metadata = """
+title: Second Album
+artist: Artist Two
+date: 2021
+
+file: track1.flac:
+title: Different Track
+track number: 01
+"""
+            (album2_dir / "metadata.txt").write_text(album2_metadata.strip())
+
+            # Set environment variables
+            os.environ["MUSIC_SOURCE_ROOT"] = str(temp_path)
+            os.environ["MUSIC_DEST_ROOT"] = str(temp_path)
+
+            try:
+                # Run export
+                result = process_directory(str(source_dir), str(dest_dir), force=True)
+
+                # Verify processing succeeded
+                assert result["processed"] == 3
+                assert len(result["errors"]) == 0
+
+                # Verify output files exist with correct names
+                assert (dest_dir / "Album 1" / "track1.opus").exists()
+                assert (dest_dir / "Album 1" / "track2.opus").exists()
+                assert (dest_dir / "Album 2" / "track1.opus").exists()
+
+            finally:
+                # Clean up environment variables
+                if "MUSIC_SOURCE_ROOT" in os.environ:
+                    del os.environ["MUSIC_SOURCE_ROOT"]
+                if "MUSIC_DEST_ROOT" in os.environ:
+                    del os.environ["MUSIC_DEST_ROOT"]
+
+    def test_mixed_metadata_scenarios(self):
+        """Test processing with mix of top-level and per-directory metadata.txt files."""
+        from music_librarian.cli import process_directory
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        import os
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source_dir = temp_path / "source"
+            dest_dir = temp_path / "dest"
+            source_dir.mkdir()
+            dest_dir.mkdir()
+
+            # Create mixed structure
+            (source_dir / "root_track.flac").write_bytes(b"fake flac data")
+
+            album_dir = source_dir / "Album"
+            album_dir.mkdir()
+            (album_dir / "album_track.flac").write_bytes(b"fake flac data")
+
+            # Top-level metadata.txt (for root_track.flac)
+            root_metadata = """
+title: Root Album
+artist: Root Artist
+
+root_track.flac
+title: Root Track
+track number: 01
+"""
+            (source_dir / "metadata.txt").write_text(root_metadata.strip())
+
+            # Album-level metadata.txt (for album_track.flac)
+            album_metadata = """
+title: Nested Album
+artist: Nested Artist
+
+album_track.flac
+title: Album Track
+track number: 01
+"""
+            (album_dir / "metadata.txt").write_text(album_metadata.strip())
+
+            # Set environment variables
+            os.environ["MUSIC_SOURCE_ROOT"] = str(temp_path)
+            os.environ["MUSIC_DEST_ROOT"] = str(temp_path)
+
+            try:
+                # Run export
+                result = process_directory(str(source_dir), str(dest_dir), force=True)
+
+                # Verify both files processed with their respective metadata
+                assert result["processed"] == 2
+                assert len(result["errors"]) == 0
+
+                # Verify output files exist
+                assert (dest_dir / "root_track.opus").exists()
+                assert (dest_dir / "Album" / "album_track.opus").exists()
+
+            finally:
+                # Clean up environment variables
+                if "MUSIC_SOURCE_ROOT" in os.environ:
+                    del os.environ["MUSIC_SOURCE_ROOT"]
+                if "MUSIC_DEST_ROOT" in os.environ:
+                    del os.environ["MUSIC_DEST_ROOT"]
+
+    def test_no_metadata_files_in_nested_structure(self):
+        """Test processing nested structure with no metadata.txt files (should use source metadata)."""
+        from music_librarian.cli import process_directory
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        import os
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source_dir = temp_path / "source"
+            dest_dir = temp_path / "dest"
+            source_dir.mkdir()
+            dest_dir.mkdir()
+
+            # Create nested structure without metadata.txt
+            album_dir = source_dir / "Album"
+            album_dir.mkdir()
+            (album_dir / "track.flac").write_bytes(b"fake flac data")
+
+            # Set environment variables
+            os.environ["MUSIC_SOURCE_ROOT"] = str(temp_path)
+            os.environ["MUSIC_DEST_ROOT"] = str(temp_path)
+
+            try:
+                # Run export
+                result = process_directory(str(source_dir), str(dest_dir), force=True)
+
+                # Should still process the file using source metadata
+                assert result["processed"] == 1
+                assert (dest_dir / "Album" / "track.opus").exists()
+
+            finally:
+                # Clean up environment variables
+                if "MUSIC_SOURCE_ROOT" in os.environ:
+                    del os.environ["MUSIC_SOURCE_ROOT"]
+                if "MUSIC_DEST_ROOT" in os.environ:
+                    del os.environ["MUSIC_DEST_ROOT"]
