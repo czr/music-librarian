@@ -20,7 +20,12 @@ def cli():
     is_flag=True,
     help="Overwrite existing files in destination",
 )
-def export(source_directories, force):
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable debug output showing commands and metadata",
+)
+def export(source_directories, force, debug):
     """Export audio files from source collection to destination collection."""
     # Validate environment variables
     source_root = os.environ.get("MUSIC_SOURCE_ROOT")
@@ -63,7 +68,7 @@ def export(source_directories, force):
         dest_dir = resolve_destination_path(source_dir, source_root, dest_root)
 
         try:
-            result = process_directory(source_dir, dest_dir, force=force)
+            result = process_directory(source_dir, dest_dir, force=force, debug=debug)
 
             total_processed += result["processed"]
             total_skipped += result["skipped"]
@@ -442,13 +447,14 @@ def get_opus_quality():
     return os.environ.get("OPUS_QUALITY", "128")
 
 
-def process_directory(source_dir, dest_dir, force=False):
+def process_directory(source_dir, dest_dir, force=False, debug=False):
     """Process a single directory for mixed audio formats (transcoding and copying).
 
     Args:
         source_dir: Path to source directory
         dest_dir: Path to destination directory
         force: Whether to overwrite existing files
+        debug: Whether to output debug information
 
     Returns:
         Dict with processing results and statistics
@@ -480,13 +486,22 @@ def process_directory(source_dir, dest_dir, force=False):
     metadata = {"album": {}, "files": {}}
 
     if os.path.exists(metadata_file):
+        if debug:
+            print(f"\n=== DEBUG: Found metadata.txt ===")
+
         with open(metadata_file, "r", encoding="utf-8") as f:
             content = f.read()
         metadata = parse_metadata_file(content)
 
+        if debug:
+            print(f"Parsed metadata: {metadata}")
+
         # Validate that referenced files exist
         available_filenames = [str(f) for f in all_audio_files]
         validate_metadata_files(metadata, available_filenames)
+    else:
+        if debug:
+            print(f"\n=== DEBUG: No metadata.txt found in {source_dir} ===")
 
     # Process each audio file
     processed = 0
@@ -521,16 +536,31 @@ def process_directory(source_dir, dest_dir, force=False):
                 metadata["album"], file_metadata, str(audio_file), input_path
             )
 
+            if debug:
+                print(f"\n=== DEBUG: Processing {audio_file} ===")
+                print(f"File type: {file_type}")
+                print(f"Album metadata: {metadata['album']}")
+                print(f"File metadata: {file_metadata}")
+                print(f"Merged metadata: {merged_metadata}")
+
             # Process the file (transcode or copy based on type)
             if file_type == "lossless":
                 # Transcode lossless files to Opus
                 cmd = build_opusenc_command(
                     input_path, output_path, quality=quality, metadata=merged_metadata
                 )
+
+                if debug:
+                    print(f"Opusenc command: {' '.join(cmd)}")
+
                 subprocess.run(cmd, check=True, capture_output=True)
             else:
                 # Copy lossy files and apply metadata
                 from music_librarian.audio_processor import copy_with_metadata
+
+                if debug:
+                    print(f"Copying lossy file: {input_path} -> {output_path}")
+                    print(f"Applying metadata: {merged_metadata}")
 
                 copy_with_metadata(input_path, output_path, merged_metadata)
 
@@ -544,6 +574,10 @@ def process_directory(source_dir, dest_dir, force=False):
 
     # Check if cover is specified in metadata.txt
     specified_cover = metadata["album"].get("cover", "").strip()
+
+    if debug:
+        print(f"\n=== DEBUG: Cover art processing ===")
+        print(f"Specified cover in metadata.txt: '{specified_cover}'")
 
     if specified_cover:
         # Use cover specified in metadata.txt
