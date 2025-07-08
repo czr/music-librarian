@@ -892,6 +892,61 @@ class TestOpusencIntegration:
 
         assert result == expected
 
+    def test_merge_metadata_unicode_filename_normalization(self):
+        """Test that merge_metadata correctly handles Unicode filename normalization."""
+        import unicodedata
+        from music_librarian.cli import (
+            merge_metadata,
+            parse_metadata_file,
+            validate_metadata_files,
+            get_normalized_file_metadata,
+        )
+
+        # Create a filename with accented characters
+        # NFD (decomposed) form: 'u' + combining umlaut
+        filename_nfd = "04-THYX-Fu\u0308rImmer.flac"
+        # NFC (composed) form: 'ü' as single character
+        filename_nfc = "04-THYX-FürImmer.flac"
+
+        # Verify they are different byte sequences but same visual representation
+        assert filename_nfd != filename_nfc
+        assert unicodedata.normalize("NFD", filename_nfd) == unicodedata.normalize(
+            "NFD", filename_nfc
+        )
+
+        # Create metadata.txt content with NFD filename
+        metadata_content = f"""title: Test Album
+artist: Test Artist
+date: 2023
+
+file: {filename_nfd}:
+title: Unicode Track Title
+track number: 04
+"""
+
+        # Parse the metadata
+        metadata = parse_metadata_file(metadata_content)
+
+        # Simulate filesystem having NFC filename (common on macOS)
+        available_files = [filename_nfc]
+
+        # Validation should pass due to normalization
+        validate_metadata_files(metadata, available_files)
+
+        # Test the helper function directly
+        file_metadata = get_normalized_file_metadata(metadata["files"], filename_nfc)
+
+        # Should find the file-specific metadata despite normalization difference
+        assert file_metadata["title"] == "Unicode Track Title"
+        assert file_metadata["track number"] == "04"
+
+        # Test merge_metadata with the normalized lookup
+        result = merge_metadata(metadata["album"], file_metadata, filename_nfc)
+
+        # Should now work correctly
+        assert result["title"] == "Unicode Track Title"
+        assert result["track number"] == "04"
+
 
 class TestReplayGainIntegration:
     """Tests for ReplayGain processing with rsgain."""

@@ -283,6 +283,34 @@ def validate_metadata_files(metadata, available_files):
             )
 
 
+def get_normalized_file_metadata(files_metadata, filename):
+    """Get file metadata with Unicode filename normalization.
+
+    This function handles cases where the filename from the filesystem
+    has different Unicode normalization than the filename in metadata.txt.
+
+    Args:
+        files_metadata: Dict mapping filenames to metadata dicts
+        filename: Filename to look up (from filesystem)
+
+    Returns:
+        Dict of file metadata, or empty dict if not found
+    """
+    # First try direct lookup (most common case)
+    if filename in files_metadata:
+        return files_metadata[filename]
+
+    # If direct lookup fails, try with normalization
+    normalized_filename = unicodedata.normalize("NFD", filename)
+
+    for key, metadata in files_metadata.items():
+        if unicodedata.normalize("NFD", key) == normalized_filename:
+            return metadata
+
+    # Not found
+    return {}
+
+
 def find_cover_art(available_files):
     """Find cover art file in the given list of files.
 
@@ -567,7 +595,9 @@ def process_directory(source_dir, dest_dir, force=False, debug=False):
 
                 # Merge metadata for this file (using relative filename within directory)
                 relative_filename = os.path.basename(str(audio_file))
-                file_metadata = metadata["files"].get(relative_filename, {})
+                file_metadata = get_normalized_file_metadata(
+                    metadata["files"], relative_filename
+                )
                 merged_metadata = merge_metadata(
                     metadata["album"], file_metadata, relative_filename, input_path
                 )
