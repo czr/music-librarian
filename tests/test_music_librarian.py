@@ -2273,6 +2273,24 @@ title: Track 1
 class TestNestedMetadataHandling:
     """Tests for handling metadata.txt files in nested directory structures."""
 
+    def create_test_flac_file(self, filepath):
+        """Create a minimal test FLAC file using ffmpeg."""
+        # Generate 1 second of silence as FLAC
+        cmd = [
+            "ffmpeg",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-t",
+            "1",
+            "-c:a",
+            "flac",
+            "-y",  # Overwrite without asking
+            str(filepath),
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
+
     def test_process_nested_albums_with_per_directory_metadata(self):
         """Test processing nested album directories with individual metadata.txt files."""
         from music_librarian.cli import process_directory
@@ -2294,9 +2312,9 @@ class TestNestedMetadataHandling:
             album2_dir.mkdir()
 
             # Create audio files
-            (album1_dir / "track1.flac").write_bytes(b"fake flac data")
-            (album1_dir / "track2.flac").write_bytes(b"fake flac data")
-            (album2_dir / "track1.flac").write_bytes(b"fake flac data")
+            self.create_test_flac_file(album1_dir / "track1.flac")
+            self.create_test_flac_file(album1_dir / "track2.flac")
+            self.create_test_flac_file(album2_dir / "track1.flac")
 
             # Create per-directory metadata.txt files
             album1_metadata = """
@@ -2364,11 +2382,11 @@ track number: 01
             dest_dir.mkdir()
 
             # Create mixed structure
-            (source_dir / "root_track.flac").write_bytes(b"fake flac data")
+            self.create_test_flac_file(source_dir / "root_track.flac")
 
             album_dir = source_dir / "Album"
             album_dir.mkdir()
-            (album_dir / "album_track.flac").write_bytes(b"fake flac data")
+            self.create_test_flac_file(album_dir / "album_track.flac")
 
             # Top-level metadata.txt (for root_track.flac)
             root_metadata = """
@@ -2432,7 +2450,7 @@ track number: 01
             # Create nested structure without metadata.txt
             album_dir = source_dir / "Album"
             album_dir.mkdir()
-            (album_dir / "track.flac").write_bytes(b"fake flac data")
+            self.create_test_flac_file(album_dir / "track.flac")
 
             # Set environment variables
             os.environ["MUSIC_SOURCE_ROOT"] = str(temp_path)
