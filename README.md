@@ -160,7 +160,7 @@ Pink Floyd/
 
 Running `music-librarian extract-metadata "Pink Floyd"` creates:
 - `Pink Floyd/metadata.txt`
-- `Pink Floyd/Dark Side of the Moon/metadata.txt`  
+- `Pink Floyd/Dark Side of the Moon/metadata.txt`
 - `Pink Floyd/Wish You Were Here/Disc 1/metadata.txt`
 - `Pink Floyd/Wish You Were Here/Disc 2/metadata.txt`
 
@@ -194,6 +194,12 @@ To run the tests:
 ```bash
 python -m pytest
 ```
+
+## Release
+
+1. Bump the version number in `pyproject.toml`
+2. Create the release in GitHub: `gh release create v1.2.6 --target main`
+3. Update `music-librarian` in the `homebrew-czr` repo
 
 ## License
 
