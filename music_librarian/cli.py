@@ -431,6 +431,10 @@ def merge_metadata(album_metadata, file_metadata, filename, source_file_path=Non
     for key, value in album_metadata.items():
         if key == "title":
             result["album"] = value
+        elif key == "artist":
+            # When album artist is specified, set both artist and albumartist
+            result["artist"] = value
+            result["albumartist"] = value
         else:
             result[key] = value
 

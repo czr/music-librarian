@@ -710,7 +710,12 @@ class TestOpusencIntegration:
 
         result = merge_metadata(album_metadata, file_metadata, filename)
 
-        expected = {"album": "Album Title", "artist": "Album Artist", "date": "2023"}
+        expected = {
+            "album": "Album Title",
+            "artist": "Album Artist",
+            "albumartist": "Album Artist",
+            "date": "2023",
+        }
 
         assert result == expected
 
@@ -733,6 +738,7 @@ class TestOpusencIntegration:
         expected = {
             "album": "Album Title",
             "artist": "Album Artist",  # Album artist preserved
+            "albumartist": "Album Artist",  # Album artist sets albumartist too
             "date": "2023",
             "title": "Track Title",  # Overridden by file metadata
             "track number": "01",
@@ -799,6 +805,7 @@ class TestOpusencIntegration:
         expected = {
             "title": "Track Title",  # From file metadata (highest priority)
             "artist": "Album Artist",  # From album metadata
+            "albumartist": "Album Artist",  # From album metadata (same as artist)
             "album": "Album Title",  # From album metadata (title -> album mapping)
             "date": "2023",  # From album metadata
             "genre": "Rock",  # From source metadata (preserved)
@@ -868,7 +875,124 @@ class TestOpusencIntegration:
         expected = {
             "album": "Album Title",
             "artist": "Album Artist",
+            "albumartist": "Album Artist",
             "title": "Track Title",
+        }
+
+        assert result == expected
+
+    def test_album_artist_sets_both_artist_and_albumartist(self):
+        """Test that metadata.txt album artist sets both ARTIST and ALBUMARTIST."""
+        from music_librarian.cli import merge_metadata
+        from unittest.mock import patch
+
+        # Source file has existing ALBUMARTIST
+        source_metadata = {
+            "title": "Track Title",
+            "artist": "Original Artist",
+            "albumartist": "Original Album Artist",
+            "album": "Original Album",
+        }
+
+        # metadata.txt specifies album artist
+        album_metadata = {"artist": "New Album Artist", "title": "New Album Title"}
+
+        file_metadata = {}
+        filename = "track.flac"
+
+        with patch(
+            "music_librarian.metadata_handler.read_metadata_from_file"
+        ) as mock_read:
+            mock_read.return_value = source_metadata
+
+            result = merge_metadata(
+                album_metadata, file_metadata, filename, "/fake/path/track.flac"
+            )
+
+        # Album artist from metadata.txt should set both artist and albumartist
+        expected = {
+            "title": "Track Title",  # From source (preserved)
+            "artist": "New Album Artist",  # From album metadata
+            "albumartist": "New Album Artist",  # From album metadata (same as artist)
+            "album": "New Album Title",  # From album metadata (title -> album)
+        }
+
+        assert result == expected
+
+    def test_track_artist_overrides_only_artist_preserves_albumartist(self):
+        """Test that track-specific artist override preserves albumartist from album metadata."""
+        from music_librarian.cli import merge_metadata
+        from unittest.mock import patch
+
+        # Source file has existing metadata
+        source_metadata = {
+            "title": "Track Title",
+            "artist": "Original Artist",
+            "albumartist": "Original Album Artist",
+            "album": "Original Album",
+        }
+
+        # metadata.txt specifies album artist
+        album_metadata = {"artist": "Album Artist", "title": "Album Title"}
+
+        # Track-specific override for artist only
+        file_metadata = {"artist": "Track Artist"}
+
+        filename = "track.flac"
+
+        with patch(
+            "music_librarian.metadata_handler.read_metadata_from_file"
+        ) as mock_read:
+            mock_read.return_value = source_metadata
+
+            result = merge_metadata(
+                album_metadata, file_metadata, filename, "/fake/path/track.flac"
+            )
+
+        # Track artist should override artist but preserve albumartist from album metadata
+        expected = {
+            "title": "Track Title",  # From source (preserved)
+            "artist": "Track Artist",  # From file metadata override
+            "albumartist": "Album Artist",  # From album metadata (preserved)
+            "album": "Album Title",  # From album metadata (title -> album)
+        }
+
+        assert result == expected
+
+    def test_no_album_artist_preserves_source_albumartist(self):
+        """Test that when no album artist is specified, source ALBUMARTIST is preserved."""
+        from music_librarian.cli import merge_metadata
+        from unittest.mock import patch
+
+        # Source file has ALBUMARTIST but different ARTIST
+        source_metadata = {
+            "title": "Track Title",
+            "artist": "Track Artist",
+            "albumartist": "Source Album Artist",
+            "album": "Source Album",
+        }
+
+        # metadata.txt has no artist field
+        album_metadata = {"title": "Album Title"}
+
+        file_metadata = {}
+        filename = "track.flac"
+
+        with patch(
+            "music_librarian.metadata_handler.read_metadata_from_file"
+        ) as mock_read:
+            mock_read.return_value = source_metadata
+
+            result = merge_metadata(
+                album_metadata, file_metadata, filename, "/fake/path/track.flac"
+            )
+
+        # Should preserve both artist and albumartist from source
+        expected = {
+            "title": "Track Title",  # From source
+            "artist": "Track Artist",  # From source (preserved)
+            "albumartist": "Source Album Artist",  # From source (preserved)
+            "album": "Album Title",  # From album metadata (title -> album)
         }
 
         assert result == expected
@@ -887,6 +1011,7 @@ class TestOpusencIntegration:
         expected = {
             "album": "Album Title",
             "artist": "Album Artist",
+            "albumartist": "Album Artist",
             "title": "Track Title",
         }
 
