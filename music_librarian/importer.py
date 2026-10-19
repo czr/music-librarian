@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Tuple
 
+from music_librarian.extractor import extract_metadata_from_directory
 from music_librarian.file_discovery import find_audio_files
 from music_librarian.metadata_handler import read_metadata_from_file
 
@@ -213,9 +214,6 @@ def _ignore_clutter(directory, names):
 
 def _create_metadata_files(album_dir: Path) -> None:
     """Generate metadata.txt wherever there's audio, keeping any that exist."""
-    # Imported here because the CLI module imports this one.
-    from music_librarian.cli import extract_metadata_from_directory
-
     result = extract_metadata_from_directory(album_dir, force=False)
     if result["errors"]:
         raise ImportFailed(

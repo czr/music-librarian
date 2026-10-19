@@ -474,7 +474,7 @@ class TestCoverArt:
 
     def test_find_cover_art_basic_patterns(self):
         """Test finding cover art files with basic naming patterns."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         available_files = ["track1.flac", "track2.flac", "cover.jpg", "readme.txt"]
 
@@ -483,7 +483,7 @@ class TestCoverArt:
 
     def test_find_cover_art_case_insensitive(self):
         """Test case-insensitive cover art detection."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         test_cases = [
             (["COVER.JPG", "track.flac"], "COVER.JPG"),
@@ -499,7 +499,7 @@ class TestCoverArt:
 
     def test_find_cover_art_multiple_candidates(self):
         """Test that first matching cover art file is returned."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         available_files = [
             "track1.flac",
@@ -513,7 +513,7 @@ class TestCoverArt:
 
     def test_find_cover_art_different_extensions(self):
         """Test finding cover art with different supported extensions."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         test_cases = [
             (["cover.jpg"], "cover.jpg"),
@@ -529,7 +529,7 @@ class TestCoverArt:
 
     def test_find_cover_art_no_match(self):
         """Test behavior when no cover art files are found."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         available_files = ["track1.flac", "track2.wav", "metadata.txt", "readme.txt"]
 
@@ -538,7 +538,7 @@ class TestCoverArt:
 
     def test_find_cover_art_priority_order(self):
         """Test that cover art files are found in priority order."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         # Based on the spec: cover, folder, front, album
         available_files = [
@@ -554,7 +554,7 @@ class TestCoverArt:
 
     def test_find_cover_art_without_audio_files(self):
         """Test finding cover art in directory without audio files."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         available_files = ["cover.jpg", "readme.txt", "metadata.txt"]
 
@@ -1800,7 +1800,7 @@ class TestMetadataExtraction:
 
     def test_discover_audio_files_sorted(self):
         """Test that audio files are discovered and sorted alphabetically."""
-        from music_librarian.cli import discover_and_sort_audio_files
+        from music_librarian.extractor import discover_and_sort_audio_files
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create test files in non-alphabetical order
@@ -1819,7 +1819,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_from_audio_file(self):
         """Test extracting metadata from a single audio file."""
-        from music_librarian.cli import extract_metadata_from_file
+        from music_librarian.extractor import extract_metadata_from_file
 
         # This will test the interface - real implementation will need actual audio files
         metadata = extract_metadata_from_file("test.flac")
@@ -1874,7 +1874,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_no_audio_files_error(self):
         """Test that processing fails when no audio files are found."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create directory with no audio files
@@ -1885,7 +1885,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_existing_file_without_force(self):
         """Test that existing metadata.txt is not overwritten without --force."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create audio file and existing metadata.txt
@@ -1900,7 +1900,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_existing_file_with_force(self):
         """Test that existing metadata.txt is overwritten with --force."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create audio file and existing metadata.txt
@@ -1915,7 +1915,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_with_nested_album_directories(self):
         """Test NEW behavior: creates metadata.txt in each directory with audio files."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create artist directory with multiple albums
@@ -1968,7 +1968,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_only_subdirectories_no_root_files(self):
         """Test NEW behavior: creates metadata.txt only in subdirectories with audio files."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create artist directory with albums but no files in root
@@ -2009,7 +2009,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_per_album_recursive_processing(self):
         """Test that metadata.txt files are created for each directory containing audio files."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create Pink Floyd directory structure as described
@@ -2067,7 +2067,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_mixed_structure_with_empty_dirs(self):
         """Test processing with directories that don't contain audio files."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create structure with some empty directories
@@ -2097,7 +2097,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_deeply_nested_structure(self):
         """Test processing with deeply nested album structure."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create deeply nested structure
@@ -2134,7 +2134,7 @@ class TestCoverMetadataHandling:
 
     def test_extract_metadata_adds_cover_field_with_existing_cover(self):
         """Test that extract-metadata adds cover field when recognizable cover exists."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
 
@@ -2158,7 +2158,7 @@ class TestCoverMetadataHandling:
 
     def test_extract_metadata_adds_blank_cover_field_when_no_cover(self):
         """Test that extract-metadata adds blank cover field when no recognizable cover exists."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
 
@@ -2183,7 +2183,7 @@ class TestCoverMetadataHandling:
 
     def test_extract_metadata_prioritizes_cover_files(self):
         """Test that extract-metadata prioritizes standard cover files over others."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
 

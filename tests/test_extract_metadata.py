@@ -2,7 +2,7 @@
 
 from audio_helpers import make_flac
 
-from music_librarian.cli import extract_metadata_from_single_directory
+from music_librarian.extractor import extract_metadata_from_single_directory
 from music_librarian.metadata_file import merge_metadata, parse_metadata_file
 from music_librarian.metadata_handler import read_metadata_from_file
 

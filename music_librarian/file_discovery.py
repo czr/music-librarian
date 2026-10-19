@@ -81,3 +81,28 @@ def find_audio_files_with_types(root_path: Path) -> Dict[str, List[Path]]:
                 result["lossy"].append(relative_path)
 
     return result
+
+
+def find_cover_art(available_files):
+    """Find cover art file in the given list of files.
+
+    Args:
+        available_files: List of filenames to search through
+
+    Returns:
+        Filename of first matching cover art file, or None if no match
+    """
+    # Prefixes in priority order
+    cover_prefixes = ["cover", "folder", "front", "album"]
+    # Supported extensions
+    cover_extensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
+
+    # Search by priority order
+    for prefix in cover_prefixes:
+        for filename in available_files:
+            filename_lower = filename.lower()
+            for ext in cover_extensions:
+                if filename_lower.startswith(prefix) and filename_lower.endswith(ext):
+                    return filename
+
+    return None
