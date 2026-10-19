@@ -1,7 +1,11 @@
 """Import downloaded albums into the source collection."""
 
+import os
+import shutil
+import tempfile
 import unicodedata
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Tuple
 
@@ -121,3 +125,122 @@ def read_album_identity(root: Path) -> Tuple[str, str]:
 
 def _quoted_list(values) -> str:
     return ", ".join(repr(v) for v in sorted(values))
+
+
+@dataclass
+class ImportPlan:
+    """A checked import, ready to run."""
+
+    source: Path
+    content_root: Path
+    artist_folder: str
+    album_folder: str
+    new_artist: bool
+    track_count: int
+    other_count: int
+
+    @property
+    def relative_destination(self) -> Path:
+        return Path(self.artist_folder) / self.album_folder
+
+
+def _plan_import(source: Path, library_root: Path, workdir: Path) -> ImportPlan:
+    content_root = unpack(source, workdir)
+    artist, album = read_album_identity(content_root)
+
+    artist_name = folder_name_for(artist)
+    album_folder = folder_name_for(album)
+    existing_artist = find_matching_entry(library_root, artist_name)
+
+    if existing_artist:
+        existing_album = find_matching_entry(
+            library_root / existing_artist, album_folder
+        )
+        if existing_album:
+            raise ImportFailed(
+                f"{existing_artist}/{existing_album} already exists in the library"
+            )
+
+    files = [
+        p.relative_to(content_root)
+        for p in content_root.rglob("*")
+        if p.is_file() and not is_clutter(p.relative_to(content_root))
+    ]
+    track_count = len(_audio_files(content_root))
+
+    return ImportPlan(
+        source=source,
+        content_root=content_root,
+        artist_folder=existing_artist or artist_name,
+        album_folder=album_folder,
+        new_artist=existing_artist is None,
+        track_count=track_count,
+        other_count=len(files) - track_count,
+    )
+
+
+def plan_imports(sources, library_root: Path, workdir: Path) -> List[ImportPlan]:
+    """Check every source and plan its import, without writing to the library.
+
+    Zips are extracted under `workdir`, which must outlive the returned plans.
+    Raises ImportFailed, naming the source, at the first problem.
+    """
+    plans = []
+    destinations = {}
+    for index, source in enumerate(sources):
+        source_workdir = workdir / str(index)
+        source_workdir.mkdir(parents=True)
+        try:
+            plan = _plan_import(source, library_root, source_workdir)
+        except ImportFailed as e:
+            raise ImportFailed(f"{source.name}: {e}") from e
+
+        key = _comparison_key(str(plan.relative_destination))
+        if key in destinations:
+            raise ImportFailed(
+                f"{destinations[key].name} and {source.name} would both import "
+                f"to {plan.relative_destination}"
+            )
+        destinations[key] = source
+        plans.append(plan)
+
+    return plans
+
+
+def _ignore_clutter(directory, names):
+    return [name for name in names if is_clutter(name)]
+
+
+def run_import(plan: ImportPlan, library_root: Path) -> Path:
+    """Copy a planned album into the library, and return where it landed.
+
+    The album is assembled in a hidden staging directory on the same volume,
+    then renamed into place, so it appears complete or not at all.
+    """
+    artist_dir = library_root / plan.artist_folder
+    created_artist_dir = not artist_dir.exists()
+    staging = Path(
+        tempfile.mkdtemp(prefix=".music-librarian-import-", dir=library_root)
+    )
+    try:
+        staged_album = staging / plan.album_folder
+        shutil.copytree(plan.content_root, staged_album, ignore=_ignore_clutter)
+
+        artist_dir.mkdir(exist_ok=True)
+        # Checked again because the library may have changed since planning,
+        # and a rename onto an existing empty directory would replace it.
+        existing_album = find_matching_entry(artist_dir, plan.album_folder)
+        if existing_album:
+            raise ImportFailed(
+                f"{plan.artist_folder}/{existing_album} already exists in the library"
+            )
+
+        destination = artist_dir / plan.album_folder
+        os.rename(staged_album, destination)
+        return destination
+    except BaseException:
+        if created_artist_dir and artist_dir.is_dir() and not any(artist_dir.iterdir()):
+            artist_dir.rmdir()
+        raise
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)

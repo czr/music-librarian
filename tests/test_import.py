@@ -14,7 +14,9 @@ from music_librarian.importer import (
     find_matching_entry,
     folder_name_for,
     is_clutter,
+    plan_imports,
     read_album_identity,
+    run_import,
     unpack,
 )
 
@@ -69,6 +71,22 @@ def make_tree(root, members):
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_bytes(content)
     return root
+
+
+def make_album_zip(path, artist, album, track_names, extras=None):
+    """Create a Bandcamp-style zip of tagged tracks plus optional extra files."""
+    staging = path.parent / f".{path.stem}-contents"
+    for name in track_names:
+        make_flac(staging / name, artist=artist, albumartist=artist, album=album)
+    for name, content in (extras or {}).items():
+        (staging / name).write_bytes(content)
+
+    with zipfile.ZipFile(path, "w") as zf:
+        for file_path in sorted(staging.rglob("*")):
+            if file_path.is_file():
+                zf.write(file_path, file_path.relative_to(staging))
+    shutil.rmtree(staging)
+    return path
 
 
 def list_tree(root):
@@ -337,3 +355,197 @@ class TestReadAlbumIdentity:
 
         with pytest.raises(ImportFailed, match="01 Broken.flac"):
             read_album_identity(tmp_path)
+
+
+class TestPlanImports:
+    def test_plans_destination_from_tags(self, tmp_path):
+        library = tmp_path / "library"
+        library.mkdir()
+        source = make_album_zip(
+            tmp_path / "Desiderii Marginis - Consecrare-Via Peregrinus.zip",
+            "Desiderii Marginis",
+            "Consecrare/Via Peregrinus",
+            ["01 Consecrare.flac", "02 Hostia.flac"],
+            extras={"cover.jpg": b"image"},
+        )
+
+        [plan] = plan_imports([source], library, tmp_path / "work")
+
+        assert plan.source == source
+        assert plan.artist_folder == "Desiderii Marginis"
+        assert plan.album_folder == "Consecrare-Via Peregrinus"
+        assert plan.new_artist is True
+        assert plan.track_count == 2
+        assert plan.other_count == 1
+
+    def test_uses_existing_artist_spelling(self, tmp_path):
+        library = tmp_path / "library"
+        (library / "ARCANA" / "Dark Age Of Reason").mkdir(parents=True)
+        source = make_album_zip(
+            tmp_path / "a.zip", "Arcana", "Magna Silentia", ["01.flac"]
+        )
+
+        [plan] = plan_imports([source], library, tmp_path / "work")
+
+        assert plan.artist_folder == "ARCANA"
+        assert plan.new_artist is False
+
+    def test_existing_album_fails(self, tmp_path):
+        library = tmp_path / "library"
+        (library / "Desiderii Marginis" / "Songs Over Ruins").mkdir(parents=True)
+        source = make_album_zip(
+            tmp_path / "dm.zip", "Desiderii Marginis", "Songs over Ruins", ["01.flac"]
+        )
+
+        with pytest.raises(
+            ImportFailed,
+            match="dm.zip: Desiderii Marginis/Songs Over Ruins already exists",
+        ):
+            plan_imports([source], library, tmp_path / "work")
+
+    def test_two_sources_for_the_same_album_fail(self, tmp_path):
+        library = tmp_path / "library"
+        library.mkdir()
+        first = make_album_zip(tmp_path / "one.zip", "A", "Album", ["01.flac"])
+        second = make_album_zip(tmp_path / "two.zip", "a", "ALBUM", ["01.flac"])
+
+        with pytest.raises(ImportFailed, match="one.zip and two.zip would both"):
+            plan_imports([first, second], library, tmp_path / "work")
+
+    def test_errors_name_the_source(self, tmp_path):
+        library = tmp_path / "library"
+        library.mkdir()
+        source = make_zip(tmp_path / "empty-ish.zip", {"cover.jpg": b"image"})
+
+        with pytest.raises(ImportFailed, match="empty-ish.zip: no audio files"):
+            plan_imports([source], library, tmp_path / "work")
+
+    def test_one_bad_source_fails_the_whole_batch_before_writing(self, tmp_path):
+        library = tmp_path / "library"
+        library.mkdir()
+        good = make_album_zip(tmp_path / "good.zip", "A", "Album", ["01.flac"])
+        bad = make_zip(tmp_path / "bad.zip", {"cover.jpg": b"image"})
+
+        with pytest.raises(ImportFailed, match="bad.zip"):
+            plan_imports([good, bad], library, tmp_path / "work")
+
+        assert list(library.iterdir()) == []
+
+
+class TestRunImport:
+    def plan_one(self, tmp_path, source):
+        library = tmp_path / "library"
+        library.mkdir(exist_ok=True)
+        [plan] = plan_imports([source], library, tmp_path / "work")
+        return library, plan
+
+    def test_album_lands_in_artist_album_folder(self, tmp_path):
+        source = make_album_zip(
+            tmp_path / "Arcana - Magna Silentia.zip",
+            "Arcana",
+            "Magna Silentia",
+            ["01 Det Stora Tysta.flac", "02 The Adversity Bell.flac"],
+            extras={"cover.jpg": b"image"},
+        )
+        library, plan = self.plan_one(tmp_path, source)
+
+        destination = run_import(plan, library)
+
+        assert destination == library / "Arcana" / "Magna Silentia"
+        assert list_tree(destination) == [
+            "01 Det Stora Tysta.flac",
+            "02 The Adversity Bell.flac",
+            "cover.jpg",
+        ]
+
+    def test_files_are_copied_byte_for_byte(self, tmp_path):
+        source_dir = tmp_path / "download"
+        make_flac(source_dir / "01.flac", artist="A", album="B")
+        (source_dir / "cover.jpg").write_bytes(b"image")
+        original = (source_dir / "01.flac").read_bytes()
+        library, plan = self.plan_one(tmp_path, source_dir)
+
+        destination = run_import(plan, library)
+
+        assert (destination / "01.flac").read_bytes() == original
+
+    def test_directory_source_is_left_untouched(self, tmp_path):
+        source_dir = tmp_path / "download"
+        make_flac(source_dir / "01.flac", artist="A", album="B")
+        (source_dir / ".DS_Store").write_bytes(b"junk")
+        library, plan = self.plan_one(tmp_path, source_dir)
+
+        destination = run_import(plan, library)
+
+        assert list_tree(source_dir) == [".DS_Store", "01.flac"]
+        assert list_tree(destination) == ["01.flac"]
+
+    def test_zip_source_is_left_untouched(self, tmp_path):
+        source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
+        original = source.read_bytes()
+        library, plan = self.plan_one(tmp_path, source)
+
+        run_import(plan, library)
+
+        assert source.read_bytes() == original
+
+    def test_disc_subfolders_are_kept(self, tmp_path):
+        source_dir = tmp_path / "download"
+        make_flac(source_dir / "Disc 1" / "01.flac", artist="A", album="B")
+        make_flac(source_dir / "Disc 2" / "01.flac", artist="A", album="B")
+        library, plan = self.plan_one(tmp_path, source_dir)
+
+        destination = run_import(plan, library)
+
+        assert list_tree(destination) == ["Disc 1/01.flac", "Disc 2/01.flac"]
+
+    def test_existing_artist_folder_is_reused(self, tmp_path):
+        library = tmp_path / "library"
+        (library / "arcana" / "Petrichor").mkdir(parents=True)
+        source = make_album_zip(
+            tmp_path / "a.zip", "Arcana", "Magna Silentia", ["01.flac"]
+        )
+        library, plan = self.plan_one(tmp_path, source)
+
+        destination = run_import(plan, library)
+
+        assert destination == library / "arcana" / "Magna Silentia"
+        assert sorted(p.name for p in (library / "arcana").iterdir()) == [
+            "Magna Silentia",
+            "Petrichor",
+        ]
+
+    def test_no_staging_directory_is_left_behind(self, tmp_path):
+        source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
+        library, plan = self.plan_one(tmp_path, source)
+
+        run_import(plan, library)
+
+        assert [p.name for p in library.iterdir()] == ["A"]
+
+    def test_album_appearing_after_planning_fails_without_overwriting(self, tmp_path):
+        source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
+        library, plan = self.plan_one(tmp_path, source)
+        (library / "A" / "b").mkdir(parents=True)
+        (library / "A" / "b" / "mine.flac").write_bytes(b"precious")
+
+        with pytest.raises(ImportFailed, match="A/b already exists"):
+            run_import(plan, library)
+
+        assert list_tree(library) == ["A/b/mine.flac"]
+
+    def test_failure_cleans_up_new_artist_folder_and_staging(
+        self, tmp_path, monkeypatch
+    ):
+        source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
+        library, plan = self.plan_one(tmp_path, source)
+
+        def fail_rename(src, dst):
+            raise OSError("disk unplugged")
+
+        monkeypatch.setattr("music_librarian.importer.os.rename", fail_rename)
+
+        with pytest.raises(OSError, match="disk unplugged"):
+            run_import(plan, library)
+
+        assert list(library.iterdir()) == []
