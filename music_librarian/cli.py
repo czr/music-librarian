@@ -758,6 +758,7 @@ def extract_metadata_from_file(filepath):
         result = {
             "title": metadata.get("title", ""),
             "artist": metadata.get("artist", ""),
+            "albumartist": metadata.get("albumartist", ""),
             "album": metadata.get("album", ""),
             "date": metadata.get("date", ""),
             "track number": metadata.get("track number", ""),
@@ -765,7 +766,14 @@ def extract_metadata_from_file(filepath):
         return result
     except Exception:
         # If metadata extraction fails, return empty metadata
-        return {"title": "", "artist": "", "album": "", "date": "", "track number": ""}
+        return {
+            "title": "",
+            "artist": "",
+            "albumartist": "",
+            "album": "",
+            "date": "",
+            "track number": "",
+        }
 
 
 def generate_metadata_template(
@@ -925,9 +933,12 @@ def extract_metadata_from_single_directory(directory, force=False, template_only
         try:
             first_file_meta = extract_metadata_from_file(str(first_file))
             # Map to album metadata (title becomes album title, etc.)
+            # Export applies the album artist to every track's ARTIST, so
+            # differing track artists are written per file below.
             album_metadata = {
                 "title": first_file_meta.get("album", ""),
-                "artist": first_file_meta.get("artist", ""),
+                "artist": first_file_meta.get("albumartist")
+                or first_file_meta.get("artist", ""),
                 "date": first_file_meta.get("date", ""),
             }
         except Exception as e:
@@ -953,10 +964,13 @@ def extract_metadata_from_single_directory(directory, force=False, template_only
             filepath = directory_path / audio_file
             try:
                 meta = extract_metadata_from_file(str(filepath))
-                file_metadata[str(audio_file)] = {
-                    "title": meta.get("title", ""),
-                    "track number": meta.get("track number", ""),
-                }
+                file_metadata[str(audio_file)] = {"title": meta.get("title", "")}
+                track_artist = meta.get("artist", "")
+                if track_artist and track_artist != album_metadata["artist"]:
+                    file_metadata[str(audio_file)]["artist"] = track_artist
+                file_metadata[str(audio_file)]["track number"] = meta.get(
+                    "track number", ""
+                )
             except Exception as e:
                 return {
                     "processed": 0,

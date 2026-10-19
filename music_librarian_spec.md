@@ -220,8 +220,11 @@ The `extract-metadata` command extracts metadata from audio files in specified d
 2. **File sorting**: Sort discovered files alphabetically for predictable processing order
 3. **Metadata extraction**: Read metadata from all audio files in each directory
 4. **Template generation**: Create `metadata.txt` file in each directory with:
-   - Album-wide metadata extracted from first audio file (after sorting)
-   - File-specific sections for each audio file with current metadata values
+   - Album-wide metadata extracted from first audio file (after sorting). The
+     album `artist` comes from its ALBUMARTIST tag, falling back to ARTIST.
+   - File-specific sections for each audio file with current metadata values.
+     A file's `artist` is included only when it differs from the album artist,
+     so that exporting with the generated file reproduces the original tags.
    - Missing metadata fields included as blank values
    - Comments explaining the format and usage
 

@@ -1,13 +1,11 @@
 """Tests for the import command."""
 
-import functools
 import shutil
-import subprocess
 import unicodedata
 import zipfile
 
 import pytest
-from mutagen.flac import FLAC
+from audio_helpers import make_flac
 
 from music_librarian.importer import (
     ImportFailed,
@@ -19,41 +17,6 @@ from music_librarian.importer import (
     run_import,
     unpack,
 )
-
-
-@functools.cache
-def _silent_flac_bytes():
-    """A short silent FLAC, generated once and reused as raw material."""
-    result = subprocess.run(
-        [
-            "ffmpeg",
-            "-f",
-            "lavfi",
-            "-i",
-            "anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-t",
-            "0.1",
-            "-c:a",
-            "flac",
-            "-f",
-            "flac",
-            "-",
-        ],
-        check=True,
-        capture_output=True,
-    )
-    return result.stdout
-
-
-def make_flac(path, **tags):
-    """Create a silent FLAC at `path` with the given tags (e.g. album="X")."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(_silent_flac_bytes())
-    audio = FLAC(path)
-    for key, value in tags.items():
-        audio[key.upper()] = value
-    audio.save()
-    return path
 
 
 def make_zip(path, members):
