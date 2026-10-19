@@ -2,25 +2,9 @@
 
 from pathlib import Path
 
-from music_librarian.file_discovery import find_audio_files, find_cover_art
+from music_librarian.file_discovery import find_cover_art, is_audio_file
 from music_librarian.metadata_file import generate_metadata_template
 from music_librarian.metadata_handler import read_metadata_from_file
-
-
-def discover_and_sort_audio_files(directory):
-    """Discover audio files in directory and return them sorted alphabetically.
-
-    Args:
-        directory: Path to directory to search
-
-    Returns:
-        List of Path objects for audio files, sorted alphabetically
-    """
-    directory_path = Path(directory)
-    audio_files = find_audio_files(directory_path)
-
-    # Sort alphabetically by filename
-    return sorted(audio_files, key=lambda p: str(p))
 
 
 def extract_metadata_from_file(filepath):
@@ -74,21 +58,13 @@ def find_album_directories(root_directory):
             continue
 
         # Check if this directory contains audio files directly (not in subdirectories)
-        audio_extensions = {".flac", ".wav", ".mp3", ".ogg", ".aac", ".m4a", ".opus"}
-        has_direct_audio_files = False
-
-        for file_path in directory_path.iterdir():
-            if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
-                has_direct_audio_files = True
-                break
-
-        if has_direct_audio_files:
+        if any(is_audio_file(p) for p in directory_path.iterdir()):
             album_directories.append(directory_path)
 
     return album_directories
 
 
-def discover_and_sort_audio_files_in_directory_only(directory):
+def discover_and_sort_audio_files(directory):
     """Discover audio files only in the specified directory (not recursively).
 
     Args:
@@ -98,15 +74,7 @@ def discover_and_sort_audio_files_in_directory_only(directory):
         List of Path objects for audio files in the directory only (not subdirectories)
     """
     directory_path = Path(directory)
-    audio_extensions = {".flac", ".wav", ".mp3", ".ogg", ".aac", ".m4a", ".opus"}
-    audio_files = []
-
-    for file_path in directory_path.iterdir():
-        if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
-            audio_files.append(file_path.name)
-
-    # Sort alphabetically by filename
-    return sorted([Path(f) for f in audio_files])
+    return sorted(Path(p.name) for p in directory_path.iterdir() if is_audio_file(p))
 
 
 def extract_metadata_from_single_directory(directory, force=False, template_only=False):
@@ -129,7 +97,7 @@ def extract_metadata_from_single_directory(directory, force=False, template_only
 
     # Discover and sort audio files (only in this directory, not recursively)
     try:
-        audio_files = discover_and_sort_audio_files_in_directory_only(directory)
+        audio_files = discover_and_sort_audio_files(directory)
     except Exception as e:
         return {
             "processed": 0,
@@ -176,7 +144,7 @@ def extract_metadata_from_single_directory(directory, force=False, template_only
             all_files_in_dir = [f.name for f in directory_path.iterdir() if f.is_file()]
             cover_file = find_cover_art(all_files_in_dir)
             album_metadata["cover"] = cover_file if cover_file else ""
-        except Exception as e:
+        except Exception:
             # If cover detection fails, just set empty cover
             album_metadata["cover"] = ""
 

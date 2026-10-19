@@ -185,7 +185,7 @@ class TestPathResolution:
 
     def test_resolve_output_filename(self):
         """Test converting input filenames to output .opus filenames."""
-        from music_librarian.exporter import resolve_output_filename
+        from music_librarian.audio_processor import get_output_filename
 
         test_cases = [
             ("track.flac", "track.opus"),
@@ -195,7 +195,7 @@ class TestPathResolution:
         ]
 
         for input_file, expected in test_cases:
-            result = resolve_output_filename(input_file)
+            result = get_output_filename(input_file, "lossless")
             assert result == expected
 
 
@@ -1683,30 +1683,16 @@ class TestMixedFormatProcessing:
 
     def test_resolve_output_filename_preserves_lossy_extensions(self):
         """Test that lossy files keep their original extensions."""
-        from music_librarian.exporter import resolve_output_filename_for_type
+        from music_librarian.audio_processor import get_output_filename
 
         # Test that lossless files get .opus extension
-        assert (
-            resolve_output_filename_for_type("track.flac", "lossless") == "track.opus"
-        )
-        assert resolve_output_filename_for_type("track.wav", "lossless") == "track.opus"
+        assert get_output_filename("track.flac", "lossless") == "track.opus"
+        assert get_output_filename("track.wav", "lossless") == "track.opus"
 
         # Test that lossy files preserve their extension
-        assert resolve_output_filename_for_type("track.mp3", "lossy") == "track.mp3"
-        assert resolve_output_filename_for_type("track.ogg", "lossy") == "track.ogg"
-        assert resolve_output_filename_for_type("track.aac", "lossy") == "track.aac"
-
-    def test_rsgain_processes_mixed_audio_files(self):
-        """Test that ReplayGain processing handles mixed output formats."""
-        from music_librarian.exporter import build_rsgain_command_for_mixed_formats
-
-        # Test that rsgain can process directories with .opus, .mp3, .ogg, etc.
-        directory = "/dest/album"
-        preset_path = "/some/preset.ini"
-        result = build_rsgain_command_for_mixed_formats(directory, preset_path)
-
-        expected = ["rsgain", "easy", "-p", "/some/preset.ini", directory]
-        assert result == expected
+        assert get_output_filename("track.mp3", "lossy") == "track.mp3"
+        assert get_output_filename("track.ogg", "lossy") == "track.ogg"
+        assert get_output_filename("track.aac", "lossy") == "track.aac"
 
     def test_rsgain_preset_bundled(self):
         """Test that the bundled rsgain preset file exists and is readable."""

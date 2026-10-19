@@ -49,32 +49,6 @@ def resolve_destination_path(source_dir, source_root, dest_root):
     return str(dest_path)
 
 
-def resolve_output_filename(input_filename):
-    """Convert input filename to output .opus filename.
-
-    Args:
-        input_filename: Input filename (with .flac or .wav extension)
-
-    Returns:
-        Output filename with .opus extension
-    """
-    input_path = Path(input_filename)
-    return str(input_path.with_suffix(".opus"))
-
-
-def resolve_output_filename_for_type(input_filename, file_type):
-    """Convert input filename to appropriate output filename based on type.
-
-    Args:
-        input_filename: Input filename
-        file_type: Either 'lossless' or 'lossy'
-
-    Returns:
-        Output filename with appropriate extension
-    """
-    return get_output_filename(input_filename, file_type)
-
-
 class MissingTool(Exception):
     """A required external tool isn't installed."""
 
@@ -102,19 +76,6 @@ def build_rsgain_command(directory, preset_path):
 
     Args:
         directory: Path to directory containing .opus files
-        preset_path: Path to rsgain preset file
-
-    Returns:
-        List of command arguments for subprocess
-    """
-    return ["rsgain", "easy", "-p", str(preset_path), directory]
-
-
-def build_rsgain_command_for_mixed_formats(directory, preset_path):
-    """Build rsgain command for ReplayGain processing of mixed audio formats.
-
-    Args:
-        directory: Path to directory containing mixed audio files
         preset_path: Path to rsgain preset file
 
     Returns:
@@ -224,9 +185,7 @@ def process_directory(source_dir, dest_dir, force=False, debug=False):
 
                 # Build paths preserving relative directory structure
                 input_path = os.path.join(source_dir, audio_file)
-                output_filename = resolve_output_filename_for_type(
-                    str(audio_file), file_type
-                )
+                output_filename = get_output_filename(str(audio_file), file_type)
                 output_path = os.path.join(dest_dir, output_filename)
 
                 # Create subdirectories in destination if needed
@@ -341,9 +300,7 @@ def process_directory(source_dir, dest_dir, force=False, debug=False):
     if total_processed > 0:
         try:
             with as_file(_rsgain_preset_ref()) as preset_path:
-                rsgain_cmd = build_rsgain_command_for_mixed_formats(
-                    dest_dir, preset_path
-                )
+                rsgain_cmd = build_rsgain_command(dest_dir, preset_path)
                 subprocess.run(rsgain_cmd, check=True, capture_output=True)
         except Exception as e:
             total_errors.append(f"Error running ReplayGain: {str(e)}")

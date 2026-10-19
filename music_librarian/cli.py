@@ -88,7 +88,7 @@ def export(source_directories, force, debug):
             click.echo(f"  Processed: {result['processed']} files")
             click.echo(f"  Skipped: {result['skipped']} files")
             if result["cover_art_copied"]:
-                click.echo(f"  Cover art copied")
+                click.echo("  Cover art copied")
 
             if result["errors"]:
                 for error in result["errors"]:
@@ -100,7 +100,7 @@ def export(source_directories, force, debug):
             click.echo(f"  Error: {error_msg}", err=True)
 
     # Summary
-    click.echo(f"\nSummary:")
+    click.echo("\nSummary:")
     click.echo(f"  Total processed: {total_processed}")
     click.echo(f"  Total skipped: {total_skipped}")
     click.echo(f"  Total errors: {len(total_errors)}")
@@ -159,7 +159,7 @@ def extract_metadata(source_directories, force, template_only):
             click.echo(f"  Error: {error_msg}", err=True)
 
     # Summary
-    click.echo(f"\nSummary:")
+    click.echo("\nSummary:")
     click.echo(f"  Total processed: {total_processed}")
     click.echo(f"  Total skipped: {total_skipped}")
     click.echo(f"  Total errors: {len(total_errors)}")
