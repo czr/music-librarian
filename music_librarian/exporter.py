@@ -96,6 +96,9 @@ def get_opus_quality():
 def process_directory(source_dir, dest_dir, force=False, debug=False):
     """Process a single directory for mixed audio formats (transcoding and copying).
 
+    Each subdirectory containing audio is exported with its own metadata.txt
+    and cover art; ReplayGain is then applied across the whole destination.
+
     Args:
         source_dir: Path to source directory
         dest_dir: Path to destination directory
@@ -105,205 +108,35 @@ def process_directory(source_dir, dest_dir, force=False, debug=False):
     Returns:
         Dict with processing results and statistics
     """
-    # Check external tools are available
     check_external_tools()
-
-    # Get quality setting
     quality = get_opus_quality()
-
-    # Create destination directory
     os.makedirs(dest_dir, exist_ok=True)
 
-    # Find all audio files with type classification
-    audio_files_by_type = find_audio_files_with_types(Path(source_dir))
-    all_audio_files = audio_files_by_type["lossless"] + audio_files_by_type["lossy"]
-
-    if not all_audio_files:
+    files_by_directory = _audio_files_by_directory(Path(source_dir))
+    if not files_by_directory:
         return {"processed": 0, "skipped": 0, "errors": [], "cover_art_copied": False}
-
-    # Group audio files by their containing directory
-    files_by_directory = {}
-    for audio_file in all_audio_files:
-        audio_dir = os.path.dirname(str(audio_file))
-        if audio_dir not in files_by_directory:
-            files_by_directory[audio_dir] = []
-        files_by_directory[audio_dir].append(audio_file)
 
     if debug:
         print(
             f"\n=== DEBUG: Found audio files in directories: {list(files_by_directory.keys())} ==="
         )
 
-    # Process each directory separately
     total_processed = 0
     total_skipped = 0
     total_errors = []
     cover_art_copied = False
 
-    # Process each directory that contains audio files
     for audio_dir, audio_files in files_by_directory.items():
-        # Build paths for this directory
-        source_subdir = os.path.join(source_dir, audio_dir) if audio_dir else source_dir
-        dest_subdir = os.path.join(dest_dir, audio_dir) if audio_dir else dest_dir
+        result = _export_audio_directory(
+            source_dir, dest_dir, audio_dir, audio_files, quality, force, debug
+        )
+        total_processed += result["processed"]
+        total_skipped += result["skipped"]
+        total_errors.extend(result["errors"])
+        cover_art_copied = cover_art_copied or result["cover_art_copied"]
 
-        # Look for metadata.txt in this specific directory
-        metadata_file = os.path.join(source_subdir, "metadata.txt")
-        metadata = {"album": {}, "files": {}}
-
-        if os.path.exists(metadata_file):
-            if debug:
-                print(f"\n=== DEBUG: Found metadata.txt in {source_subdir} ===")
-            try:
-                with open(metadata_file, "r", encoding="utf-8") as f:
-                    metadata_content = f.read()
-                metadata = parse_metadata_file(metadata_content)
-                validate_metadata_files(
-                    metadata, [os.path.basename(str(af)) for af in audio_files]
-                )
-            except Exception as e:
-                total_errors.append(
-                    f"Error reading metadata.txt in {audio_dir}: {str(e)}"
-                )
-                continue
-        else:
-            if debug:
-                print(f"\n=== DEBUG: No metadata.txt found in {source_subdir} ===")
-
-        # Create destination subdirectory if needed
-        if audio_dir and not os.path.exists(dest_subdir):
-            os.makedirs(dest_subdir, exist_ok=True)
-
-        # Process each audio file in this directory
-        processed = 0
-        skipped = 0
-        errors = []
-
-        for audio_file in audio_files:
-            try:
-                # Determine file type
-                file_type = "lossless" if is_lossless_format(audio_file) else "lossy"
-
-                # Build paths preserving relative directory structure
-                input_path = os.path.join(source_dir, audio_file)
-                output_filename = get_output_filename(str(audio_file), file_type)
-                output_path = os.path.join(dest_dir, output_filename)
-
-                # Create subdirectories in destination if needed
-                output_dir = os.path.dirname(output_path)
-                if output_dir != dest_dir:
-                    os.makedirs(output_dir, exist_ok=True)
-
-                # Skip if exists and not forcing
-                if os.path.exists(output_path) and not force:
-                    skipped += 1
-                    continue
-
-                # Merge metadata for this file (using relative filename within directory)
-                relative_filename = os.path.basename(str(audio_file))
-                file_metadata = get_normalized_file_metadata(
-                    metadata["files"], relative_filename
-                )
-                merged_metadata = merge_metadata(
-                    metadata["album"], file_metadata, relative_filename, input_path
-                )
-
-                if debug:
-                    print(f"\n=== DEBUG: Processing {audio_file} ===")
-                    print(f"File type: {file_type}")
-                    print(f"Album metadata: {metadata['album']}")
-                    print(f"File metadata: {file_metadata}")
-                    print(f"Merged metadata: {merged_metadata}")
-
-                # Process the file (transcode or copy based on type)
-                if file_type == "lossless":
-                    # Transcode lossless files to Opus
-                    cmd = build_opusenc_command(
-                        input_path,
-                        output_path,
-                        quality=quality,
-                        metadata=merged_metadata,
-                    )
-
-                    if debug:
-                        print(f"Opusenc command: {' '.join(cmd)}")
-
-                    subprocess.run(cmd, check=True, capture_output=True)
-                else:
-                    # Copy lossy files and apply metadata
-                    if debug:
-                        print(f"Copying lossy file: {input_path} -> {output_path}")
-                        print(f"Applying metadata: {merged_metadata}")
-
-                    copy_with_metadata(input_path, output_path, merged_metadata)
-
-                processed += 1
-
-            except Exception as e:
-                errors.append(f"Error processing {audio_file}: {str(e)}")
-
-        # Handle cover art for this directory
-        specified_cover = metadata["album"].get("cover", "").strip()
-
-        if debug:
-            print(f"\n=== DEBUG: Cover art processing for {audio_dir} ===")
-            print(f"Specified cover in metadata.txt: '{specified_cover}'")
-
-        if specified_cover:
-            # Use cover specified in metadata.txt
-            try:
-                cover_src = os.path.join(source_subdir, specified_cover)
-                if os.path.exists(cover_src):
-                    # Extract extension and create cover.{ext} filename
-                    _, ext = os.path.splitext(specified_cover)
-                    cover_dest = os.path.join(dest_subdir, f"cover{ext}")
-
-                    if not os.path.exists(cover_dest) or force:
-                        shutil.copy2(cover_src, cover_dest)
-                        cover_art_copied = True
-                else:
-                    errors.append(
-                        f"Cover file specified in metadata.txt not found: {specified_cover}"
-                    )
-            except Exception as e:
-                errors.append(
-                    f"Error copying specified cover art {specified_cover}: {str(e)}"
-                )
-        else:
-            # Fall back to automatic cover art detection
-            if os.path.exists(source_subdir):
-                all_files = os.listdir(source_subdir)
-                cover_art = find_cover_art(all_files)
-
-                if cover_art:
-                    try:
-                        cover_src = os.path.join(source_subdir, cover_art)
-                        cover_dest = os.path.join(dest_subdir, cover_art)
-
-                        # Ensure destination subdirectory exists
-                        os.makedirs(dest_subdir, exist_ok=True)
-
-                        if not os.path.exists(cover_dest) or force:
-                            # Actually copy the cover art
-                            shutil.copy2(cover_src, cover_dest)
-                            cover_art_copied = True
-                    except Exception as e:
-                        errors.append(
-                            f"Error copying cover art from {audio_dir}: {str(e)}"
-                        )
-
-        # Update totals
-        total_processed += processed
-        total_skipped += skipped
-        total_errors.extend(errors)
-
-    # Run ReplayGain processing if files were processed
     if total_processed > 0:
-        try:
-            with as_file(_rsgain_preset_ref()) as preset_path:
-                rsgain_cmd = build_rsgain_command(dest_dir, preset_path)
-                subprocess.run(rsgain_cmd, check=True, capture_output=True)
-        except Exception as e:
-            total_errors.append(f"Error running ReplayGain: {str(e)}")
+        total_errors.extend(_apply_replaygain(dest_dir))
 
     return {
         "processed": total_processed,
@@ -311,3 +144,175 @@ def process_directory(source_dir, dest_dir, force=False, debug=False):
         "errors": total_errors,
         "cover_art_copied": cover_art_copied,
     }
+
+
+def _audio_files_by_directory(source_path):
+    """Group audio files (relative paths) by their containing directory."""
+    audio_files_by_type = find_audio_files_with_types(source_path)
+    files_by_directory = {}
+    for audio_file in audio_files_by_type["lossless"] + audio_files_by_type["lossy"]:
+        audio_dir = os.path.dirname(str(audio_file))
+        files_by_directory.setdefault(audio_dir, []).append(audio_file)
+    return files_by_directory
+
+
+def _export_audio_directory(
+    source_dir, dest_dir, audio_dir, audio_files, quality, force, debug
+):
+    """Export the audio files directly within one directory, plus its cover art."""
+    source_subdir = os.path.join(source_dir, audio_dir) if audio_dir else source_dir
+    dest_subdir = os.path.join(dest_dir, audio_dir) if audio_dir else dest_dir
+    result = {"processed": 0, "skipped": 0, "errors": [], "cover_art_copied": False}
+
+    try:
+        metadata = _load_metadata(source_subdir, audio_files, debug)
+    except Exception as e:
+        result["errors"].append(f"Error reading metadata.txt in {audio_dir}: {str(e)}")
+        return result
+
+    if audio_dir and not os.path.exists(dest_subdir):
+        os.makedirs(dest_subdir, exist_ok=True)
+
+    for audio_file in audio_files:
+        try:
+            if _export_audio_file(
+                source_dir, dest_dir, audio_file, metadata, quality, force, debug
+            ):
+                result["processed"] += 1
+            else:
+                result["skipped"] += 1
+        except Exception as e:
+            result["errors"].append(f"Error processing {audio_file}: {str(e)}")
+
+    result["cover_art_copied"] = _copy_cover_art(
+        source_subdir, dest_subdir, audio_dir, metadata, force, debug, result["errors"]
+    )
+    return result
+
+
+def _load_metadata(source_subdir, audio_files, debug):
+    """Read and validate metadata.txt in a directory, if there is one."""
+    metadata_file = os.path.join(source_subdir, "metadata.txt")
+    if not os.path.exists(metadata_file):
+        if debug:
+            print(f"\n=== DEBUG: No metadata.txt found in {source_subdir} ===")
+        return {"album": {}, "files": {}}
+
+    if debug:
+        print(f"\n=== DEBUG: Found metadata.txt in {source_subdir} ===")
+    with open(metadata_file, "r", encoding="utf-8") as f:
+        metadata = parse_metadata_file(f.read())
+    validate_metadata_files(metadata, [os.path.basename(str(af)) for af in audio_files])
+    return metadata
+
+
+def _export_audio_file(
+    source_dir, dest_dir, audio_file, metadata, quality, force, debug
+):
+    """Transcode or copy one audio file. Returns False if skipped as existing."""
+    file_type = "lossless" if is_lossless_format(audio_file) else "lossy"
+
+    # Build paths preserving relative directory structure
+    input_path = os.path.join(source_dir, audio_file)
+    output_path = os.path.join(
+        dest_dir, get_output_filename(str(audio_file), file_type)
+    )
+
+    output_dir = os.path.dirname(output_path)
+    if output_dir != dest_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    if os.path.exists(output_path) and not force:
+        return False
+
+    # Merge metadata for this file (using relative filename within directory)
+    relative_filename = os.path.basename(str(audio_file))
+    file_metadata = get_normalized_file_metadata(metadata["files"], relative_filename)
+    merged_metadata = merge_metadata(
+        metadata["album"], file_metadata, relative_filename, input_path
+    )
+
+    if debug:
+        print(f"\n=== DEBUG: Processing {audio_file} ===")
+        print(f"File type: {file_type}")
+        print(f"Album metadata: {metadata['album']}")
+        print(f"File metadata: {file_metadata}")
+        print(f"Merged metadata: {merged_metadata}")
+
+    if file_type == "lossless":
+        cmd = build_opusenc_command(
+            input_path, output_path, quality=quality, metadata=merged_metadata
+        )
+        if debug:
+            print(f"Opusenc command: {' '.join(cmd)}")
+        subprocess.run(cmd, check=True, capture_output=True)
+    else:
+        if debug:
+            print(f"Copying lossy file: {input_path} -> {output_path}")
+            print(f"Applying metadata: {merged_metadata}")
+        copy_with_metadata(input_path, output_path, merged_metadata)
+
+    return True
+
+
+def _copy_cover_art(
+    source_subdir, dest_subdir, audio_dir, metadata, force, debug, errors
+):
+    """Copy a directory's cover art, appending any problems to `errors`.
+
+    A cover named in metadata.txt is copied as cover.<ext>; otherwise the first
+    file that looks like cover art is copied under its own name. Returns
+    whether anything was copied.
+    """
+    specified_cover = metadata["album"].get("cover", "").strip()
+
+    if debug:
+        print(f"\n=== DEBUG: Cover art processing for {audio_dir} ===")
+        print(f"Specified cover in metadata.txt: '{specified_cover}'")
+
+    if specified_cover:
+        try:
+            cover_src = os.path.join(source_subdir, specified_cover)
+            if not os.path.exists(cover_src):
+                errors.append(
+                    f"Cover file specified in metadata.txt not found: {specified_cover}"
+                )
+                return False
+            _, ext = os.path.splitext(specified_cover)
+            cover_dest = os.path.join(dest_subdir, f"cover{ext}")
+            if not os.path.exists(cover_dest) or force:
+                shutil.copy2(cover_src, cover_dest)
+                return True
+        except Exception as e:
+            errors.append(
+                f"Error copying specified cover art {specified_cover}: {str(e)}"
+            )
+        return False
+
+    if not os.path.exists(source_subdir):
+        return False
+    cover_art = find_cover_art(os.listdir(source_subdir))
+    if not cover_art:
+        return False
+
+    try:
+        cover_src = os.path.join(source_subdir, cover_art)
+        cover_dest = os.path.join(dest_subdir, cover_art)
+        os.makedirs(dest_subdir, exist_ok=True)
+        if not os.path.exists(cover_dest) or force:
+            shutil.copy2(cover_src, cover_dest)
+            return True
+    except Exception as e:
+        errors.append(f"Error copying cover art from {audio_dir}: {str(e)}")
+    return False
+
+
+def _apply_replaygain(dest_dir):
+    """Run rsgain over the destination. Returns a list of errors."""
+    try:
+        with as_file(_rsgain_preset_ref()) as preset_path:
+            rsgain_cmd = build_rsgain_command(dest_dir, preset_path)
+            subprocess.run(rsgain_cmd, check=True, capture_output=True)
+    except Exception as e:
+        return [f"Error running ReplayGain: {str(e)}"]
+    return []
