@@ -52,6 +52,36 @@ music-librarian export --force "Pink Floyd/Dark Side of the Moon"
 - Cover art → copied automatically
 - ReplayGain tags → applied to all files as an album
 
+### Import Command
+
+Import downloaded albums (for example Bandcamp zips) into `MUSIC_SOURCE_ROOT`:
+
+```bash
+# Import one or more zips or folders
+music-librarian import ~/Downloads/"Arcana - Magna Silentia.zip"
+
+# Import, then export the new albums straight away
+music-librarian import --export ~/Downloads/Desiderii*.zip
+
+# Don't generate metadata.txt
+music-librarian import --no-metadata ~/Downloads/album-folder
+```
+
+**What happens:**
+- The album goes to `Artist/Album/`, named from the tracks' album artist and
+  album tags (`/` and `:` become `-`)
+- An existing artist folder is reused even if its capitalisation differs; a new
+  one is reported as `[new artist]`
+- Files are copied unchanged with their original names; macOS clutter
+  (`__MACOSX`, `.DS_Store`, `._*`) is dropped, and a single wrapping folder is
+  unwrapped
+- `metadata.txt` is generated, ready for edits before exporting
+- The zip or folder you imported from is left alone
+
+Anything unusual stops the whole import before anything is written: tracks
+that disagree on artist or album, missing tags, no audio, or an album that's
+already in the library. Sort those out by hand.
+
 ### Extract Metadata Command
 
 Generate `metadata.txt` files from your existing audio files to create editable templates:

@@ -3,6 +3,15 @@
 from pathlib import Path
 from typing import List, Dict
 
+LOSSLESS_EXTENSIONS = {".flac", ".wav"}
+LOSSY_EXTENSIONS = {".mp3", ".ogg", ".aac", ".m4a", ".opus"}
+AUDIO_EXTENSIONS = LOSSLESS_EXTENSIONS | LOSSY_EXTENSIONS
+
+
+def is_audio_file(file_path: Path) -> bool:
+    """Is this an existing file with an audio extension?"""
+    return file_path.is_file() and file_path.suffix.lower() in AUDIO_EXTENSIONS
+
 
 def find_audio_files(root_path: Path) -> List[Path]:
     """Find all audio files (lossless and lossy) in a directory tree.
@@ -22,12 +31,10 @@ def find_audio_files(root_path: Path) -> List[Path]:
     if not root_path.is_dir():
         raise NotADirectoryError(f"Path is not a directory: {root_path}")
 
-    # Include both lossless and lossy audio formats
-    audio_extensions = {".flac", ".wav", ".mp3", ".ogg", ".aac", ".m4a", ".opus"}
     audio_files = []
 
     for file_path in root_path.rglob("*"):
-        if file_path.is_file() and file_path.suffix.lower() in audio_extensions:
+        if is_audio_file(file_path):
             relative_path = file_path.relative_to(root_path)
             audio_files.append(relative_path)
 
@@ -43,8 +50,7 @@ def is_lossless_format(file_path: Path) -> bool:
     Returns:
         True if the file is in a lossless format, False otherwise
     """
-    lossless_extensions = {".flac", ".wav"}
-    return file_path.suffix.lower() in lossless_extensions
+    return file_path.suffix.lower() in LOSSLESS_EXTENSIONS
 
 
 def find_audio_files_with_types(root_path: Path) -> Dict[str, List[Path]]:
@@ -65,9 +71,6 @@ def find_audio_files_with_types(root_path: Path) -> Dict[str, List[Path]]:
     if not root_path.is_dir():
         raise NotADirectoryError(f"Path is not a directory: {root_path}")
 
-    lossless_extensions = {".flac", ".wav"}
-    lossy_extensions = {".mp3", ".ogg", ".aac", ".m4a", ".opus"}
-
     result = {"lossless": [], "lossy": []}
 
     for file_path in root_path.rglob("*"):
@@ -75,9 +78,34 @@ def find_audio_files_with_types(root_path: Path) -> Dict[str, List[Path]]:
             suffix = file_path.suffix.lower()
             relative_path = file_path.relative_to(root_path)
 
-            if suffix in lossless_extensions:
+            if suffix in LOSSLESS_EXTENSIONS:
                 result["lossless"].append(relative_path)
-            elif suffix in lossy_extensions:
+            elif suffix in LOSSY_EXTENSIONS:
                 result["lossy"].append(relative_path)
 
     return result
+
+
+def find_cover_art(available_files):
+    """Find cover art file in the given list of files.
+
+    Args:
+        available_files: List of filenames to search through
+
+    Returns:
+        Filename of first matching cover art file, or None if no match
+    """
+    # Prefixes in priority order
+    cover_prefixes = ["cover", "folder", "front", "album"]
+    # Supported extensions
+    cover_extensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
+
+    # Search by priority order
+    for prefix in cover_prefixes:
+        for filename in available_files:
+            filename_lower = filename.lower()
+            for ext in cover_extensions:
+                if filename_lower.startswith(prefix) and filename_lower.endswith(ext):
+                    return filename
+
+    return None

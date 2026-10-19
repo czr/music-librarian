@@ -137,7 +137,7 @@ class TestPathResolution:
 
     def test_resolve_destination_path_single_level(self):
         """Test resolving destination path for single level directory."""
-        from music_librarian.cli import resolve_destination_path
+        from music_librarian.exporter import resolve_destination_path
 
         source_root = "/media/external/flac"
         dest_root = "/home/user/music/opus"
@@ -149,7 +149,7 @@ class TestPathResolution:
 
     def test_resolve_destination_path_nested(self):
         """Test resolving destination path for nested directories."""
-        from music_librarian.cli import resolve_destination_path
+        from music_librarian.exporter import resolve_destination_path
 
         source_root = "/media/external/flac"
         dest_root = "/home/user/music/opus"
@@ -161,7 +161,7 @@ class TestPathResolution:
 
     def test_resolve_destination_path_exact_root(self):
         """Test resolving destination path when source is exactly the root."""
-        from music_librarian.cli import resolve_destination_path
+        from music_librarian.exporter import resolve_destination_path
 
         source_root = "/media/external/flac"
         dest_root = "/home/user/music/opus"
@@ -173,7 +173,7 @@ class TestPathResolution:
 
     def test_resolve_destination_path_with_trailing_slashes(self):
         """Test path resolution handles trailing slashes correctly."""
-        from music_librarian.cli import resolve_destination_path
+        from music_librarian.exporter import resolve_destination_path
 
         source_root = "/media/external/flac/"
         dest_root = "/home/user/music/opus/"
@@ -185,7 +185,7 @@ class TestPathResolution:
 
     def test_resolve_output_filename(self):
         """Test converting input filenames to output .opus filenames."""
-        from music_librarian.cli import resolve_output_filename
+        from music_librarian.audio_processor import get_output_filename
 
         test_cases = [
             ("track.flac", "track.opus"),
@@ -195,7 +195,7 @@ class TestPathResolution:
         ]
 
         for input_file, expected in test_cases:
-            result = resolve_output_filename(input_file)
+            result = get_output_filename(input_file, "lossless")
             assert result == expected
 
 
@@ -204,7 +204,7 @@ class TestMetadataParsing:
 
     def test_parse_album_metadata_only(self):
         """Test parsing metadata.txt with only album-wide metadata."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """title: TERROR 404
 artist: Perturbator
@@ -221,7 +221,7 @@ date: 2012
 
     def test_parse_file_specific_metadata(self):
         """Test parsing metadata.txt with file-specific overrides."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """title: TERROR 404
 artist: Perturbator
@@ -254,7 +254,7 @@ title: Mirage
 
     def test_parse_empty_values(self):
         """Test parsing metadata.txt with empty values."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """title:
 artist: Test Artist
@@ -275,7 +275,7 @@ track number: 01
 
     def test_parse_with_whitespace(self):
         """Test parsing handles leading/trailing whitespace correctly."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """  title:   Album Title
 artist:Perturbator
@@ -296,7 +296,7 @@ track number:  01
 
     def test_parse_case_sensitive_fields(self):
         """Test that field names are case-sensitive."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """Title: Should Not Match
 title: Correct Title
@@ -319,7 +319,7 @@ artist: Correct Artist
 
     def test_parse_comments_and_empty_lines(self):
         """Test parsing ignores comments and empty lines."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """# This is a comment
 title: Album Title
@@ -344,7 +344,7 @@ track number: 01
 
     def test_parse_malformed_file_section(self):
         """Test parsing handles malformed file sections gracefully."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """title: Album Title
 
@@ -365,7 +365,7 @@ title: This should be parsed
 
     def test_validate_files_exist(self):
         """Test validation that files referenced in metadata.txt exist."""
-        from music_librarian.cli import validate_metadata_files
+        from music_librarian.metadata_file import validate_metadata_files
 
         metadata = {
             "album": {"title": "Test Album"},
@@ -383,7 +383,7 @@ title: This should be parsed
 
     def test_validate_files_all_exist(self):
         """Test validation passes when all files exist."""
-        from music_librarian.cli import validate_metadata_files
+        from music_librarian.metadata_file import validate_metadata_files
 
         metadata = {
             "album": {"title": "Test Album"},
@@ -400,7 +400,7 @@ title: This should be parsed
 
     def test_validate_unicode_filenames_nfd_nfc_mismatch(self):
         """Test validation with Unicode filenames that have NFD/NFC normalization differences."""
-        from music_librarian.cli import validate_metadata_files
+        from music_librarian.metadata_file import validate_metadata_files
 
         # Create a filename with accented characters
         # NFD (decomposed) form: 'u' + combining umlaut
@@ -429,7 +429,7 @@ title: This should be parsed
 
     def test_validate_unicode_filenames_still_missing(self):
         """Test validation with Unicode filenames that are genuinely missing."""
-        from music_librarian.cli import validate_metadata_files
+        from music_librarian.metadata_file import validate_metadata_files
 
         metadata = {
             "album": {"title": "Test Album"},
@@ -448,7 +448,7 @@ title: This should be parsed
 
     def test_validate_unicode_filenames_all_exist(self):
         """Test validation passes when all Unicode files exist."""
-        from music_librarian.cli import validate_metadata_files
+        from music_librarian.metadata_file import validate_metadata_files
 
         metadata = {
             "album": {"title": "Test Album"},
@@ -474,7 +474,7 @@ class TestCoverArt:
 
     def test_find_cover_art_basic_patterns(self):
         """Test finding cover art files with basic naming patterns."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         available_files = ["track1.flac", "track2.flac", "cover.jpg", "readme.txt"]
 
@@ -483,7 +483,7 @@ class TestCoverArt:
 
     def test_find_cover_art_case_insensitive(self):
         """Test case-insensitive cover art detection."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         test_cases = [
             (["COVER.JPG", "track.flac"], "COVER.JPG"),
@@ -499,7 +499,7 @@ class TestCoverArt:
 
     def test_find_cover_art_multiple_candidates(self):
         """Test that first matching cover art file is returned."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         available_files = [
             "track1.flac",
@@ -513,7 +513,7 @@ class TestCoverArt:
 
     def test_find_cover_art_different_extensions(self):
         """Test finding cover art with different supported extensions."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         test_cases = [
             (["cover.jpg"], "cover.jpg"),
@@ -529,7 +529,7 @@ class TestCoverArt:
 
     def test_find_cover_art_no_match(self):
         """Test behavior when no cover art files are found."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         available_files = ["track1.flac", "track2.wav", "metadata.txt", "readme.txt"]
 
@@ -538,7 +538,7 @@ class TestCoverArt:
 
     def test_find_cover_art_priority_order(self):
         """Test that cover art files are found in priority order."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         # Based on the spec: cover, folder, front, album
         available_files = [
@@ -554,7 +554,7 @@ class TestCoverArt:
 
     def test_find_cover_art_without_audio_files(self):
         """Test finding cover art in directory without audio files."""
-        from music_librarian.cli import find_cover_art
+        from music_librarian.file_discovery import find_cover_art
 
         available_files = ["cover.jpg", "readme.txt", "metadata.txt"]
 
@@ -567,7 +567,7 @@ class TestOpusencIntegration:
 
     def test_build_opusenc_command_basic(self):
         """Test building basic opusenc command without metadata overrides."""
-        from music_librarian.cli import build_opusenc_command
+        from music_librarian.audio_processor import build_opusenc_command
 
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
@@ -585,7 +585,7 @@ class TestOpusencIntegration:
 
     def test_build_opusenc_command_with_quality(self):
         """Test building opusenc command with quality setting."""
-        from music_librarian.cli import build_opusenc_command
+        from music_librarian.audio_processor import build_opusenc_command
 
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
@@ -606,7 +606,7 @@ class TestOpusencIntegration:
 
     def test_build_opusenc_command_with_metadata(self):
         """Test building opusenc command with metadata overrides."""
-        from music_librarian.cli import build_opusenc_command
+        from music_librarian.audio_processor import build_opusenc_command
 
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
@@ -641,7 +641,7 @@ class TestOpusencIntegration:
 
     def test_build_opusenc_command_with_quality_and_metadata(self):
         """Test building opusenc command with both quality and metadata."""
-        from music_librarian.cli import build_opusenc_command
+        from music_librarian.audio_processor import build_opusenc_command
 
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
@@ -669,7 +669,7 @@ class TestOpusencIntegration:
 
     def test_build_opusenc_command_empty_metadata_values(self):
         """Test building opusenc command with empty metadata values."""
-        from music_librarian.cli import build_opusenc_command
+        from music_librarian.audio_processor import build_opusenc_command
 
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
@@ -690,14 +690,14 @@ class TestOpusencIntegration:
 
     def test_check_opusenc_available(self):
         """Test checking if opusenc is available in PATH."""
-        from music_librarian.cli import check_external_tools
+        from music_librarian.exporter import check_external_tools
 
         # Should not raise an exception since opusenc is available
         check_external_tools()
 
     def test_merge_metadata_album_only(self):
         """Test merging album metadata without file-specific overrides."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
 
         album_metadata = {
             "title": "Album Title",
@@ -721,7 +721,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_with_file_overrides(self):
         """Test merging metadata with file-specific overrides."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
 
         album_metadata = {
             "title": "Album Title",
@@ -748,7 +748,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_artist_override_preserves_album_artist(self):
         """Test that overriding artist preserves album artist."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
 
         album_metadata = {"title": "Album Title", "artist": "Album Artist"}
 
@@ -768,7 +768,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_with_source_file_metadata(self):
         """Test merging source file metadata with metadata.txt overrides."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         # Mock source file metadata
@@ -792,7 +792,7 @@ class TestOpusencIntegration:
 
         # Mock the metadata reading function
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.return_value = source_metadata
 
@@ -816,7 +816,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_source_file_override_replacement(self):
         """Test that metadata.txt completely replaces source file tags."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         # Source file has multiple artists (the original problem case)
@@ -835,7 +835,7 @@ class TestOpusencIntegration:
         filename = "track.flac"
 
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.return_value = source_metadata
 
@@ -854,7 +854,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_no_source_file_fallback(self):
         """Test that merge_metadata works when source file can't be read."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         album_metadata = {"title": "Album Title", "artist": "Album Artist"}
@@ -863,7 +863,7 @@ class TestOpusencIntegration:
 
         # Mock metadata reading to raise an exception
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.side_effect = Exception("Cannot read file")
 
@@ -883,7 +883,7 @@ class TestOpusencIntegration:
 
     def test_album_artist_sets_both_artist_and_albumartist(self):
         """Test that metadata.txt album artist sets both ARTIST and ALBUMARTIST."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         # Source file has existing ALBUMARTIST
@@ -901,7 +901,7 @@ class TestOpusencIntegration:
         filename = "track.flac"
 
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.return_value = source_metadata
 
@@ -921,7 +921,7 @@ class TestOpusencIntegration:
 
     def test_track_artist_overrides_only_artist_preserves_albumartist(self):
         """Test that track-specific artist override preserves albumartist from album metadata."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         # Source file has existing metadata
@@ -941,7 +941,7 @@ class TestOpusencIntegration:
         filename = "track.flac"
 
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.return_value = source_metadata
 
@@ -961,7 +961,7 @@ class TestOpusencIntegration:
 
     def test_no_album_artist_preserves_source_albumartist(self):
         """Test that when no album artist is specified, source ALBUMARTIST is preserved."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         # Source file has ALBUMARTIST but different ARTIST
@@ -979,7 +979,7 @@ class TestOpusencIntegration:
         filename = "track.flac"
 
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.return_value = source_metadata
 
@@ -999,7 +999,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_source_file_path_none(self):
         """Test that merge_metadata works when no source file path is provided."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
 
         album_metadata = {"title": "Album Title", "artist": "Album Artist"}
         file_metadata = {"title": "Track Title"}
@@ -1020,7 +1020,7 @@ class TestOpusencIntegration:
     def test_merge_metadata_unicode_filename_normalization(self):
         """Test that merge_metadata correctly handles Unicode filename normalization."""
         import unicodedata
-        from music_librarian.cli import (
+        from music_librarian.metadata_file import (
             merge_metadata,
             parse_metadata_file,
             validate_metadata_files,
@@ -1078,7 +1078,7 @@ class TestReplayGainIntegration:
 
     def test_build_rsgain_command(self):
         """Test building rsgain command for directory processing."""
-        from music_librarian.cli import build_rsgain_command
+        from music_librarian.exporter import build_rsgain_command
 
         directory = "/dest/album"
         preset_path = "/some/preset.ini"
@@ -1091,7 +1091,7 @@ class TestReplayGainIntegration:
 
     def test_check_rsgain_available(self):
         """Test checking if rsgain is available in PATH."""
-        from music_librarian.cli import check_external_tools
+        from music_librarian.exporter import check_external_tools
 
         # Should not raise an exception since rsgain is available
         check_external_tools()
@@ -1136,7 +1136,7 @@ class TestExportWorkflow:
 
     def test_process_directory_creates_nested_directories(self):
         """Test that processing creates nested Artist/Album directory structure."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create source directory with nested artist/album structure
@@ -1197,7 +1197,7 @@ class TestExportWorkflow:
 
     def test_process_directory_with_flac_file(self):
         """Test processing a directory with actual FLAC files and cover art."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create source and destination directories
@@ -1234,7 +1234,7 @@ class TestExportWorkflow:
 
     def test_process_directory_with_metadata(self):
         """Test processing with metadata.txt file."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create source and destination directories
@@ -1272,7 +1272,7 @@ track number: 01
 
     def test_process_directory_skip_existing(self):
         """Test that existing files are skipped when force=False."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create source and destination directories
@@ -1305,7 +1305,7 @@ track number: 01
 
     def test_process_directory_force_overwrite(self):
         """Test that existing files are overwritten when force=True."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create source and destination directories
@@ -1339,7 +1339,7 @@ track number: 01
 
     def test_get_opus_quality_from_env(self):
         """Test reading OPUS_QUALITY from environment variable."""
-        from music_librarian.cli import get_opus_quality
+        from music_librarian.exporter import get_opus_quality
 
         # Test default quality when env var not set
         old_value = os.environ.get("OPUS_QUALITY")
@@ -1656,7 +1656,7 @@ class TestMixedFormatProcessing:
 
     def test_process_mixed_directory_lossless_and_lossy(self):
         """Test processing directory with both lossless and lossy files."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         # This will test the updated process_directory function
         # that handles both transcoding and copying
@@ -1683,35 +1683,21 @@ class TestMixedFormatProcessing:
 
     def test_resolve_output_filename_preserves_lossy_extensions(self):
         """Test that lossy files keep their original extensions."""
-        from music_librarian.cli import resolve_output_filename_for_type
+        from music_librarian.audio_processor import get_output_filename
 
         # Test that lossless files get .opus extension
-        assert (
-            resolve_output_filename_for_type("track.flac", "lossless") == "track.opus"
-        )
-        assert resolve_output_filename_for_type("track.wav", "lossless") == "track.opus"
+        assert get_output_filename("track.flac", "lossless") == "track.opus"
+        assert get_output_filename("track.wav", "lossless") == "track.opus"
 
         # Test that lossy files preserve their extension
-        assert resolve_output_filename_for_type("track.mp3", "lossy") == "track.mp3"
-        assert resolve_output_filename_for_type("track.ogg", "lossy") == "track.ogg"
-        assert resolve_output_filename_for_type("track.aac", "lossy") == "track.aac"
-
-    def test_rsgain_processes_mixed_audio_files(self):
-        """Test that ReplayGain processing handles mixed output formats."""
-        from music_librarian.cli import build_rsgain_command_for_mixed_formats
-
-        # Test that rsgain can process directories with .opus, .mp3, .ogg, etc.
-        directory = "/dest/album"
-        preset_path = "/some/preset.ini"
-        result = build_rsgain_command_for_mixed_formats(directory, preset_path)
-
-        expected = ["rsgain", "easy", "-p", "/some/preset.ini", directory]
-        assert result == expected
+        assert get_output_filename("track.mp3", "lossy") == "track.mp3"
+        assert get_output_filename("track.ogg", "lossy") == "track.ogg"
+        assert get_output_filename("track.aac", "lossy") == "track.aac"
 
     def test_rsgain_preset_bundled(self):
         """Test that the bundled rsgain preset file exists and is readable."""
         from importlib.resources import as_file
-        from music_librarian.cli import _rsgain_preset_ref
+        from music_librarian.exporter import _rsgain_preset_ref
 
         with as_file(_rsgain_preset_ref()) as preset_path:
             assert preset_path.exists()
@@ -1800,7 +1786,7 @@ class TestMetadataExtraction:
 
     def test_discover_audio_files_sorted(self):
         """Test that audio files are discovered and sorted alphabetically."""
-        from music_librarian.cli import discover_and_sort_audio_files
+        from music_librarian.extractor import discover_and_sort_audio_files
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create test files in non-alphabetical order
@@ -1819,7 +1805,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_from_audio_file(self):
         """Test extracting metadata from a single audio file."""
-        from music_librarian.cli import extract_metadata_from_file
+        from music_librarian.extractor import extract_metadata_from_file
 
         # This will test the interface - real implementation will need actual audio files
         metadata = extract_metadata_from_file("test.flac")
@@ -1832,7 +1818,7 @@ class TestMetadataExtraction:
 
     def test_generate_metadata_template_basic(self):
         """Test generating basic metadata.txt template."""
-        from music_librarian.cli import generate_metadata_template
+        from music_librarian.metadata_file import generate_metadata_template
 
         audio_files = [Path("01-track.flac"), Path("02-track.wav")]
         album_metadata = {
@@ -1856,7 +1842,7 @@ class TestMetadataExtraction:
 
     def test_generate_metadata_template_empty(self):
         """Test generating empty template with --template-only."""
-        from music_librarian.cli import generate_metadata_template
+        from music_librarian.metadata_file import generate_metadata_template
 
         audio_files = [Path("track.flac")]
         album_metadata = {}
@@ -1874,7 +1860,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_no_audio_files_error(self):
         """Test that processing fails when no audio files are found."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create directory with no audio files
@@ -1885,7 +1871,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_existing_file_without_force(self):
         """Test that existing metadata.txt is not overwritten without --force."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create audio file and existing metadata.txt
@@ -1900,7 +1886,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_existing_file_with_force(self):
         """Test that existing metadata.txt is overwritten with --force."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create audio file and existing metadata.txt
@@ -1915,7 +1901,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_with_nested_album_directories(self):
         """Test NEW behavior: creates metadata.txt in each directory with audio files."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create artist directory with multiple albums
@@ -1968,7 +1954,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_only_subdirectories_no_root_files(self):
         """Test NEW behavior: creates metadata.txt only in subdirectories with audio files."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create artist directory with albums but no files in root
@@ -2009,7 +1995,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_per_album_recursive_processing(self):
         """Test that metadata.txt files are created for each directory containing audio files."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create Pink Floyd directory structure as described
@@ -2067,7 +2053,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_mixed_structure_with_empty_dirs(self):
         """Test processing with directories that don't contain audio files."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create structure with some empty directories
@@ -2097,7 +2083,7 @@ class TestMetadataExtraction:
 
     def test_extract_metadata_deeply_nested_structure(self):
         """Test processing with deeply nested album structure."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create deeply nested structure
@@ -2134,7 +2120,7 @@ class TestCoverMetadataHandling:
 
     def test_extract_metadata_adds_cover_field_with_existing_cover(self):
         """Test that extract-metadata adds cover field when recognizable cover exists."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
 
@@ -2158,7 +2144,7 @@ class TestCoverMetadataHandling:
 
     def test_extract_metadata_adds_blank_cover_field_when_no_cover(self):
         """Test that extract-metadata adds blank cover field when no recognizable cover exists."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
 
@@ -2183,7 +2169,7 @@ class TestCoverMetadataHandling:
 
     def test_extract_metadata_prioritizes_cover_files(self):
         """Test that extract-metadata prioritizes standard cover files over others."""
-        from music_librarian.cli import extract_metadata_from_directory
+        from music_librarian.extractor import extract_metadata_from_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
 
@@ -2206,7 +2192,7 @@ class TestCoverMetadataHandling:
 
     def test_export_copies_and_renames_cover_from_metadata(self):
         """Test that export copies and renames cover file specified in metadata."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2259,7 +2245,7 @@ title: Track 1
 
     def test_export_handles_different_cover_extensions(self):
         """Test that export preserves file extension when renaming cover."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2307,7 +2293,7 @@ title: Track 1
 
     def test_export_skips_cover_when_not_specified(self):
         """Test that export uses existing cover art logic when no cover specified in metadata."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2353,7 +2339,7 @@ title: Track 1
 
     def test_export_handles_missing_cover_file_gracefully(self):
         """Test that export handles missing cover file gracefully."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2430,7 +2416,7 @@ class TestNestedMetadataHandling:
 
     def test_process_nested_albums_with_per_directory_metadata(self):
         """Test processing nested album directories with individual metadata.txt files."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2506,7 +2492,7 @@ track number: 01
 
     def test_mixed_metadata_scenarios(self):
         """Test processing with mix of top-level and per-directory metadata.txt files."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2572,7 +2558,7 @@ track number: 01
 
     def test_no_metadata_files_in_nested_structure(self):
         """Test processing nested structure with no metadata.txt files (should use source metadata)."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2607,3 +2593,36 @@ track number: 01
                     del os.environ["MUSIC_SOURCE_ROOT"]
                 if "MUSIC_DEST_ROOT" in os.environ:
                     del os.environ["MUSIC_DEST_ROOT"]
+
+
+class TestExternalToolChecks:
+    def test_missing_tool_raises_naming_the_tool(self, monkeypatch):
+        from music_librarian.exporter import MissingTool, check_external_tools
+
+        monkeypatch.setattr(
+            "music_librarian.exporter.shutil.which",
+            lambda tool: None if tool == "rsgain" else f"/usr/bin/{tool}",
+        )
+
+        with pytest.raises(MissingTool, match="rsgain not found in PATH"):
+            check_external_tools()
+
+    def test_export_exits_before_processing_when_tool_missing(
+        self, tmp_path, monkeypatch
+    ):
+        source = tmp_path / "source"
+        (source / "Album").mkdir(parents=True)
+        monkeypatch.setattr("music_librarian.exporter.shutil.which", lambda tool: None)
+
+        result = CliRunner().invoke(
+            cli,
+            ["export", str(source / "Album")],
+            env={
+                "MUSIC_SOURCE_ROOT": str(source),
+                "MUSIC_DEST_ROOT": str(tmp_path / "dest"),
+            },
+        )
+
+        assert result.exit_code == 1
+        assert "opusenc not found in PATH" in result.output
+        assert "Processing:" not in result.output
