@@ -34,6 +34,7 @@ music-librarian <command> <source_directory> [source_directory ...] [options]
 
 - `export`: export audio files from source collection to destination collection (transcode lossless to Opus, copy lossy files).
 - `extract-metadata`: generate metadata.txt files from audio files in specified directories.
+- `import`: import downloaded albums (zip files or folders) into the source collection.
 
 ### Arguments
 - `source_directory`: One or more paths to directories containing audio files to process (must be under `MUSIC_SOURCE_ROOT`)
@@ -259,6 +260,63 @@ track number: 2
 - Fatal error if no audio files found in a directory
 - Fatal error if unable to read metadata from audio files
 - Skip directories that already contain `metadata.txt` unless `--force` specified
+
+## Import Command
+
+### Purpose
+Bring a downloaded album (typically a Bandcamp zip) into the source collection at
+`MUSIC_SOURCE_ROOT/Artist/Album/`. It is a convenience for the case where
+everything is normal; anything unusual is a fatal error, to be handled manually.
+
+### Usage
+```bash
+music-librarian import <source> [source ...] [--export] [--no-metadata]
+```
+
+Each `source` is a `.zip` file or a directory.
+
+### Options
+- `--export`: after importing, export each imported album as the `export`
+  command would.
+- `--no-metadata`: don't generate `metadata.txt` in the imported album.
+
+### Behavior
+1. Validate the environment before anything else: `MUSIC_SOURCE_ROOT` must be
+   set and exist. With `--export`, `MUSIC_DEST_ROOT` must also be set, and
+   `opusenc` and `rsgain` must be in PATH.
+2. Unpack each zip into a temporary directory (directories are used in place).
+   - macOS clutter is dropped: `__MACOSX/`, `.DS_Store`, `._*` files.
+   - If the content is a single top-level directory, that directory is the album.
+   - Everything else is kept, including subdirectories (e.g. `Disc 1/`).
+3. Determine the folder names from the audio file tags:
+   - Artist: `ALBUMARTIST`, falling back to `ARTIST`.
+   - Album: `ALBUM`.
+   - Every audio file must yield the same artist and album.
+   - `/` and `:` are replaced with `-` in folder names.
+4. Match the artist against existing folders in `MUSIC_SOURCE_ROOT`, ignoring
+   case and Unicode normalization. If one matches, use its existing spelling;
+   otherwise a new artist folder is created and reported.
+5. If the album folder already exists (matched the same way), it is an error.
+   Nothing in the collection is ever overwritten or deleted.
+6. Validate every source before importing any of them. Two sources that resolve
+   to the same album folder are an error.
+7. For each source, copy the album into a hidden staging directory inside
+   `MUSIC_SOURCE_ROOT`, generate `metadata.txt` (as `extract-metadata` would,
+   keeping any `metadata.txt` already present), then rename it into place, so
+   an album appears complete or not at all.
+8. With `--export`, once every source is imported, export each imported album.
+   An export failure does not undo the import.
+
+Source zips and directories are left untouched. Audio files are copied byte for
+byte, keeping their original filenames.
+
+### Fatal Errors
+- Environment validation failures (see above)
+- A source that is neither a zip file nor a directory, or an unreadable zip
+- No audio files in a source
+- An audio file with no artist or album tags
+- Audio files that disagree on artist or album
+- Album folder already exists, or two sources resolve to the same album
 
 ## Configuration
 
