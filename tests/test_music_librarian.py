@@ -204,7 +204,7 @@ class TestMetadataParsing:
 
     def test_parse_album_metadata_only(self):
         """Test parsing metadata.txt with only album-wide metadata."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """title: TERROR 404
 artist: Perturbator
@@ -221,7 +221,7 @@ date: 2012
 
     def test_parse_file_specific_metadata(self):
         """Test parsing metadata.txt with file-specific overrides."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """title: TERROR 404
 artist: Perturbator
@@ -254,7 +254,7 @@ title: Mirage
 
     def test_parse_empty_values(self):
         """Test parsing metadata.txt with empty values."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """title:
 artist: Test Artist
@@ -275,7 +275,7 @@ track number: 01
 
     def test_parse_with_whitespace(self):
         """Test parsing handles leading/trailing whitespace correctly."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """  title:   Album Title
 artist:Perturbator
@@ -296,7 +296,7 @@ track number:  01
 
     def test_parse_case_sensitive_fields(self):
         """Test that field names are case-sensitive."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """Title: Should Not Match
 title: Correct Title
@@ -319,7 +319,7 @@ artist: Correct Artist
 
     def test_parse_comments_and_empty_lines(self):
         """Test parsing ignores comments and empty lines."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """# This is a comment
 title: Album Title
@@ -344,7 +344,7 @@ track number: 01
 
     def test_parse_malformed_file_section(self):
         """Test parsing handles malformed file sections gracefully."""
-        from music_librarian.cli import parse_metadata_file
+        from music_librarian.metadata_file import parse_metadata_file
 
         metadata_content = """title: Album Title
 
@@ -365,7 +365,7 @@ title: This should be parsed
 
     def test_validate_files_exist(self):
         """Test validation that files referenced in metadata.txt exist."""
-        from music_librarian.cli import validate_metadata_files
+        from music_librarian.metadata_file import validate_metadata_files
 
         metadata = {
             "album": {"title": "Test Album"},
@@ -383,7 +383,7 @@ title: This should be parsed
 
     def test_validate_files_all_exist(self):
         """Test validation passes when all files exist."""
-        from music_librarian.cli import validate_metadata_files
+        from music_librarian.metadata_file import validate_metadata_files
 
         metadata = {
             "album": {"title": "Test Album"},
@@ -400,7 +400,7 @@ title: This should be parsed
 
     def test_validate_unicode_filenames_nfd_nfc_mismatch(self):
         """Test validation with Unicode filenames that have NFD/NFC normalization differences."""
-        from music_librarian.cli import validate_metadata_files
+        from music_librarian.metadata_file import validate_metadata_files
 
         # Create a filename with accented characters
         # NFD (decomposed) form: 'u' + combining umlaut
@@ -429,7 +429,7 @@ title: This should be parsed
 
     def test_validate_unicode_filenames_still_missing(self):
         """Test validation with Unicode filenames that are genuinely missing."""
-        from music_librarian.cli import validate_metadata_files
+        from music_librarian.metadata_file import validate_metadata_files
 
         metadata = {
             "album": {"title": "Test Album"},
@@ -448,7 +448,7 @@ title: This should be parsed
 
     def test_validate_unicode_filenames_all_exist(self):
         """Test validation passes when all Unicode files exist."""
-        from music_librarian.cli import validate_metadata_files
+        from music_librarian.metadata_file import validate_metadata_files
 
         metadata = {
             "album": {"title": "Test Album"},
@@ -697,7 +697,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_album_only(self):
         """Test merging album metadata without file-specific overrides."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
 
         album_metadata = {
             "title": "Album Title",
@@ -721,7 +721,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_with_file_overrides(self):
         """Test merging metadata with file-specific overrides."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
 
         album_metadata = {
             "title": "Album Title",
@@ -748,7 +748,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_artist_override_preserves_album_artist(self):
         """Test that overriding artist preserves album artist."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
 
         album_metadata = {"title": "Album Title", "artist": "Album Artist"}
 
@@ -768,7 +768,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_with_source_file_metadata(self):
         """Test merging source file metadata with metadata.txt overrides."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         # Mock source file metadata
@@ -792,7 +792,7 @@ class TestOpusencIntegration:
 
         # Mock the metadata reading function
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.return_value = source_metadata
 
@@ -816,7 +816,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_source_file_override_replacement(self):
         """Test that metadata.txt completely replaces source file tags."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         # Source file has multiple artists (the original problem case)
@@ -835,7 +835,7 @@ class TestOpusencIntegration:
         filename = "track.flac"
 
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.return_value = source_metadata
 
@@ -854,7 +854,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_no_source_file_fallback(self):
         """Test that merge_metadata works when source file can't be read."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         album_metadata = {"title": "Album Title", "artist": "Album Artist"}
@@ -863,7 +863,7 @@ class TestOpusencIntegration:
 
         # Mock metadata reading to raise an exception
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.side_effect = Exception("Cannot read file")
 
@@ -883,7 +883,7 @@ class TestOpusencIntegration:
 
     def test_album_artist_sets_both_artist_and_albumartist(self):
         """Test that metadata.txt album artist sets both ARTIST and ALBUMARTIST."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         # Source file has existing ALBUMARTIST
@@ -901,7 +901,7 @@ class TestOpusencIntegration:
         filename = "track.flac"
 
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.return_value = source_metadata
 
@@ -921,7 +921,7 @@ class TestOpusencIntegration:
 
     def test_track_artist_overrides_only_artist_preserves_albumartist(self):
         """Test that track-specific artist override preserves albumartist from album metadata."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         # Source file has existing metadata
@@ -941,7 +941,7 @@ class TestOpusencIntegration:
         filename = "track.flac"
 
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.return_value = source_metadata
 
@@ -961,7 +961,7 @@ class TestOpusencIntegration:
 
     def test_no_album_artist_preserves_source_albumartist(self):
         """Test that when no album artist is specified, source ALBUMARTIST is preserved."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
         from unittest.mock import patch
 
         # Source file has ALBUMARTIST but different ARTIST
@@ -979,7 +979,7 @@ class TestOpusencIntegration:
         filename = "track.flac"
 
         with patch(
-            "music_librarian.metadata_handler.read_metadata_from_file"
+            "music_librarian.metadata_file.read_metadata_from_file"
         ) as mock_read:
             mock_read.return_value = source_metadata
 
@@ -999,7 +999,7 @@ class TestOpusencIntegration:
 
     def test_merge_metadata_source_file_path_none(self):
         """Test that merge_metadata works when no source file path is provided."""
-        from music_librarian.cli import merge_metadata
+        from music_librarian.metadata_file import merge_metadata
 
         album_metadata = {"title": "Album Title", "artist": "Album Artist"}
         file_metadata = {"title": "Track Title"}
@@ -1020,7 +1020,7 @@ class TestOpusencIntegration:
     def test_merge_metadata_unicode_filename_normalization(self):
         """Test that merge_metadata correctly handles Unicode filename normalization."""
         import unicodedata
-        from music_librarian.cli import (
+        from music_librarian.metadata_file import (
             merge_metadata,
             parse_metadata_file,
             validate_metadata_files,
@@ -1832,7 +1832,7 @@ class TestMetadataExtraction:
 
     def test_generate_metadata_template_basic(self):
         """Test generating basic metadata.txt template."""
-        from music_librarian.cli import generate_metadata_template
+        from music_librarian.metadata_file import generate_metadata_template
 
         audio_files = [Path("01-track.flac"), Path("02-track.wav")]
         album_metadata = {
@@ -1856,7 +1856,7 @@ class TestMetadataExtraction:
 
     def test_generate_metadata_template_empty(self):
         """Test generating empty template with --template-only."""
-        from music_librarian.cli import generate_metadata_template
+        from music_librarian.metadata_file import generate_metadata_template
 
         audio_files = [Path("track.flac")]
         album_metadata = {}
