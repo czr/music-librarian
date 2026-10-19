@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Music Librarian is a Python command-line tool for transcoding FLAC/WAV music collections to Opus format. The tool preserves directory structure, handles metadata overrides via `metadata.txt` files, and processes cover art files.
+Music Librarian is a Python command-line tool for managing a music collection: importing downloaded albums into the source collection, and exporting the collection by transcoding FLAC/WAV to Opus (lossy files are copied). It preserves directory structure, applies metadata overrides from `metadata.txt` files, and handles cover art. User-facing behaviour is documented in the README; otherwise the code and tests are the reference.
 
 ## Development Commands
 
@@ -38,26 +38,19 @@ music-librarian --help
 
 ## Architecture
 
-### Core Structure
-- `music_librarian/cli.py`: Click-based CLI interface with command groups and options
-- `music_librarian/__main__.py`: Entry point for module execution
-- Entry point defined in `pyproject.toml` as `music-librarian = "music_librarian.cli:cli"`
+Entry point: `music-librarian = "music_librarian.cli:cli"` in `pyproject.toml`.
 
-### Key Dependencies
-- **Click**: Command-line interface framework
-- **External tools required**: opusenc (opus-tools), rsgain for ReplayGain processing
+- `cli.py`: Click commands (`import`, `export`, `extract-metadata`) and their output. Only this layer prints or exits.
+- `importer.py`: `import` — unpack zips or folders, name `Artist/Album` from tags, stage and rename into `MUSIC_SOURCE_ROOT`.
+- `exporter.py`: `export` — transcode/copy into `MUSIC_DEST_ROOT`, cover art, ReplayGain via rsgain.
+- `extractor.py`: `extract-metadata` — generate `metadata.txt` from existing tags.
+- `metadata_file.py`: the `metadata.txt` format — parse, validate, merge with source tags, generate.
+- `metadata_handler.py`: read and write tags with mutagen.
+- `audio_processor.py`: per-file operations — opusenc command, copying lossy files with metadata.
+- `file_discovery.py`: finding audio files and cover art.
+- `data/rsgain_preset.ini`: bundled rsgain preset.
 
-### Expected Implementation
-Based on the specification, the tool should implement:
-- `export` command for mixed audio format processing (FLAC/WAV to Opus, lossy file copying)
-- Environment variable configuration (`MUSIC_SOURCE_ROOT`, `MUSIC_DEST_ROOT`, `OPUS_QUALITY`)
-- Metadata override processing from `metadata.txt` files
-- Cover art copying with case-insensitive pattern matching
-- ReplayGain tag generation using rsgain
-
-### Current Status
-The CLI structure includes a fully implemented `export` command that handles mixed audio format processing per the detailed specification in `music_librarian_spec.md`.
-
+External tools: `opusenc` (opus-tools) and `rsgain`; tests also use `ffmpeg` to generate audio.
 
 ## Coding Guidelines
 
