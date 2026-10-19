@@ -6,6 +6,9 @@ import zipfile
 
 import pytest
 from audio_helpers import make_flac
+from click.testing import CliRunner
+
+from music_librarian.cli import cli
 
 from music_librarian.importer import (
     ImportFailed,
@@ -569,3 +572,194 @@ class TestRunImportMetadata:
         destination = run_import(plan, library, create_metadata=False)
 
         assert list_tree(destination) == ["01.flac"]
+
+
+def run_cli(args, env):
+    """Run the CLI with only the given music environment variables set."""
+    clean_env = {"MUSIC_SOURCE_ROOT": None, "MUSIC_DEST_ROOT": None, **env}
+    return CliRunner().invoke(cli, args, env=clean_env)
+
+
+class TestImportCLI:
+    def test_imports_a_zip(self, tmp_path):
+        library = tmp_path / "library"
+        library.mkdir()
+        source = make_album_zip(
+            tmp_path / "Arcana - Magna Silentia.zip",
+            "Arcana",
+            "Magna Silentia",
+            ["01.flac", "02.flac"],
+            extras={"cover.jpg": b"image"},
+        )
+
+        result = run_cli(["import", str(source)], {"MUSIC_SOURCE_ROOT": str(library)})
+
+        assert result.exit_code == 0, result.output
+        assert (library / "Arcana" / "Magna Silentia" / "01.flac").exists()
+        assert (library / "Arcana" / "Magna Silentia" / "metadata.txt").exists()
+        assert "Arcana - Magna Silentia.zip" in result.output
+        assert "Arcana/Magna Silentia" in result.output
+        assert "2 tracks, 1 other file" in result.output
+
+    def test_imports_several_sources_including_a_directory(self, tmp_path):
+        library = tmp_path / "library"
+        library.mkdir()
+        zipped = make_album_zip(tmp_path / "a.zip", "A", "First", ["01.flac"])
+        directory = tmp_path / "download"
+        make_flac(directory / "01.flac", artist="B", album="Second")
+
+        result = run_cli(
+            ["import", str(zipped), str(directory)],
+            {"MUSIC_SOURCE_ROOT": str(library)},
+        )
+
+        assert result.exit_code == 0, result.output
+        assert (library / "A" / "First" / "01.flac").exists()
+        assert (library / "B" / "Second" / "01.flac").exists()
+
+    def test_reports_new_artist(self, tmp_path):
+        library = tmp_path / "library"
+        library.mkdir()
+        source = make_album_zip(tmp_path / "a.zip", "Arcana", "M", ["01.flac"])
+
+        result = run_cli(["import", str(source)], {"MUSIC_SOURCE_ROOT": str(library)})
+
+        assert "new artist" in result.output
+
+    def test_does_not_report_existing_artist_as_new(self, tmp_path):
+        library = tmp_path / "library"
+        (library / "Arcana").mkdir(parents=True)
+        source = make_album_zip(tmp_path / "a.zip", "Arcana", "M", ["01.flac"])
+
+        result = run_cli(["import", str(source)], {"MUSIC_SOURCE_ROOT": str(library)})
+
+        assert result.exit_code == 0, result.output
+        assert "new artist" not in result.output
+
+    def test_no_metadata_flag_skips_metadata_txt(self, tmp_path):
+        library = tmp_path / "library"
+        library.mkdir()
+        source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
+
+        result = run_cli(
+            ["import", "--no-metadata", str(source)],
+            {"MUSIC_SOURCE_ROOT": str(library)},
+        )
+
+        assert result.exit_code == 0, result.output
+        assert not (library / "A" / "B" / "metadata.txt").exists()
+
+    def test_requires_a_source(self, tmp_path):
+        result = run_cli(["import"], {"MUSIC_SOURCE_ROOT": str(tmp_path)})
+
+        assert result.exit_code != 0
+
+    def test_fails_when_source_root_not_set(self, tmp_path):
+        source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
+
+        result = run_cli(["import", str(source)], {})
+
+        assert result.exit_code == 1
+        assert "MUSIC_SOURCE_ROOT" in result.output
+
+    def test_fails_when_source_root_missing(self, tmp_path):
+        source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
+        missing = tmp_path / "Volumes" / "Music"
+
+        result = run_cli(["import", str(source)], {"MUSIC_SOURCE_ROOT": str(missing)})
+
+        assert result.exit_code == 1
+        assert "does not exist" in result.output
+        assert not missing.exists()
+
+    def test_problem_with_one_source_imports_nothing(self, tmp_path):
+        library = tmp_path / "library"
+        (library / "B" / "Taken").mkdir(parents=True)
+        good = make_album_zip(tmp_path / "good.zip", "A", "Fine", ["01.flac"])
+        bad = make_album_zip(tmp_path / "bad.zip", "B", "Taken", ["01.flac"])
+
+        result = run_cli(
+            ["import", str(good), str(bad)], {"MUSIC_SOURCE_ROOT": str(library)}
+        )
+
+        assert result.exit_code == 1
+        assert "bad.zip: B/Taken already exists" in result.output
+        assert sorted(p.name for p in library.iterdir()) == ["B"]
+
+    def test_export_requires_dest_root_before_importing(self, tmp_path):
+        library = tmp_path / "library"
+        library.mkdir()
+        source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
+
+        result = run_cli(
+            ["import", "--export", str(source)], {"MUSIC_SOURCE_ROOT": str(library)}
+        )
+
+        assert result.exit_code == 1
+        assert "MUSIC_DEST_ROOT" in result.output
+        assert list(library.iterdir()) == []
+
+    def test_export_requires_tools_before_importing(self, tmp_path, monkeypatch):
+        library = tmp_path / "library"
+        library.mkdir()
+        source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
+        monkeypatch.setattr("music_librarian.cli.shutil.which", lambda tool: None)
+
+        result = run_cli(
+            ["import", "--export", str(source)],
+            {
+                "MUSIC_SOURCE_ROOT": str(library),
+                "MUSIC_DEST_ROOT": str(tmp_path / "out"),
+            },
+        )
+
+        assert result.exit_code == 1
+        assert "not found in PATH" in result.output
+        assert list(library.iterdir()) == []
+
+    def test_export_transcodes_imported_albums(self, tmp_path):
+        library = tmp_path / "library"
+        library.mkdir()
+        dest = tmp_path / "exported"
+        source = make_album_zip(
+            tmp_path / "a.zip",
+            "Arcana",
+            "Consecrare/Via",
+            ["01.flac", "02.flac"],
+            extras={"cover.jpg": b"image"},
+        )
+
+        result = run_cli(
+            ["import", "--export", str(source)],
+            {"MUSIC_SOURCE_ROOT": str(library), "MUSIC_DEST_ROOT": str(dest)},
+        )
+
+        assert result.exit_code == 0, result.output
+        assert list_tree(dest) == [
+            "Arcana/Consecrare-Via/01.opus",
+            "Arcana/Consecrare-Via/02.opus",
+            "Arcana/Consecrare-Via/cover.jpg",
+        ]
+
+    def test_export_failure_keeps_the_import(self, tmp_path, monkeypatch):
+        library = tmp_path / "library"
+        library.mkdir()
+        source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
+
+        def failing_export(source_dir, dest_dir, force=False, debug=False):
+            raise RuntimeError("opusenc exploded")
+
+        monkeypatch.setattr("music_librarian.cli.process_directory", failing_export)
+
+        result = run_cli(
+            ["import", "--export", str(source)],
+            {
+                "MUSIC_SOURCE_ROOT": str(library),
+                "MUSIC_DEST_ROOT": str(tmp_path / "out"),
+            },
+        )
+
+        assert result.exit_code == 1
+        assert "opusenc exploded" in result.output
+        assert "A/B" in result.output
+        assert (library / "A" / "B" / "01.flac").exists()

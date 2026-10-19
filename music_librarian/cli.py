@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import shutil
+import tempfile
 import unicodedata
 from importlib.resources import as_file, files
 from pathlib import Path
@@ -158,6 +159,108 @@ def extract_metadata(source_directories, force, template_only):
     # Exit with error code if there were errors
     if total_errors:
         sys.exit(1)
+
+
+@cli.command(name="import")
+@click.argument("sources", nargs=-1, required=True, type=click.Path(path_type=Path))
+@click.option(
+    "--export",
+    "export_after",
+    is_flag=True,
+    help="Export each album after importing it",
+)
+@click.option(
+    "--no-metadata",
+    is_flag=True,
+    help="Don't generate metadata.txt in imported albums",
+)
+def import_command(sources, export_after, no_metadata):
+    """Import downloaded albums (zip files or folders) into MUSIC_SOURCE_ROOT."""
+    from music_librarian.importer import ImportFailed, plan_imports, run_import
+
+    source_root = os.environ.get("MUSIC_SOURCE_ROOT", "").strip()
+    if not source_root:
+        click.echo("Error: MUSIC_SOURCE_ROOT environment variable not set", err=True)
+        sys.exit(1)
+    library_root = Path(source_root)
+    if not library_root.is_dir():
+        click.echo(f"Error: MUSIC_SOURCE_ROOT ({source_root}) does not exist", err=True)
+        sys.exit(1)
+
+    dest_root = os.environ.get("MUSIC_DEST_ROOT", "").strip()
+    if export_after:
+        if not dest_root:
+            click.echo("Error: MUSIC_DEST_ROOT environment variable not set", err=True)
+            sys.exit(1)
+        check_external_tools()
+
+    imported = []
+    with tempfile.TemporaryDirectory() as workdir:
+        try:
+            plans = plan_imports(
+                [source.expanduser() for source in sources],
+                library_root,
+                Path(workdir),
+            )
+            for plan in plans:
+                click.echo(_describe_import(plan))
+                imported.append(
+                    run_import(plan, library_root, create_metadata=not no_metadata)
+                )
+        except ImportFailed as e:
+            click.echo(f"Error: {e}", err=True)
+            _report_partial_import(imported, library_root)
+            sys.exit(1)
+        except Exception as e:
+            click.echo(f"Error: import failed: {e}", err=True)
+            _report_partial_import(imported, library_root)
+            sys.exit(1)
+
+    if not export_after:
+        return
+
+    errors = []
+    for album_dir in imported:
+        relative = album_dir.relative_to(library_root)
+        click.echo(f"\nExporting: {relative}")
+        try:
+            result = process_directory(
+                str(album_dir),
+                resolve_destination_path(str(album_dir), str(library_root), dest_root),
+            )
+            click.echo(f"  Processed: {result['processed']} files")
+            errors.extend(f"{relative}: {error}" for error in result["errors"])
+        except Exception as e:
+            errors.append(f"{relative}: {e}")
+
+    if errors:
+        for error in errors:
+            click.echo(f"Error exporting {error}", err=True)
+        click.echo(
+            "The imports are complete; fix the problem and rerun export.", err=True
+        )
+        sys.exit(1)
+
+
+def _plural(count, noun):
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+def _describe_import(plan):
+    details = _plural(plan.track_count, "track")
+    if plan.other_count:
+        details += f", {_plural(plan.other_count, 'other file')}"
+    line = f"{plan.source.name} → {plan.relative_destination}/ ({details})"
+    if plan.new_artist:
+        line += " [new artist]"
+    return line
+
+
+def _report_partial_import(imported, library_root):
+    if imported:
+        click.echo("Already imported before the error:", err=True)
+        for album_dir in imported:
+            click.echo(f"  {album_dir.relative_to(library_root)}", err=True)
 
 
 def resolve_destination_path(source_dir, source_root, dest_root):
