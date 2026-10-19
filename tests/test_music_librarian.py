@@ -2607,3 +2607,36 @@ track number: 01
                     del os.environ["MUSIC_SOURCE_ROOT"]
                 if "MUSIC_DEST_ROOT" in os.environ:
                     del os.environ["MUSIC_DEST_ROOT"]
+
+
+class TestExternalToolChecks:
+    def test_missing_tool_raises_naming_the_tool(self, monkeypatch):
+        from music_librarian.exporter import MissingTool, check_external_tools
+
+        monkeypatch.setattr(
+            "music_librarian.exporter.shutil.which",
+            lambda tool: None if tool == "rsgain" else f"/usr/bin/{tool}",
+        )
+
+        with pytest.raises(MissingTool, match="rsgain not found in PATH"):
+            check_external_tools()
+
+    def test_export_exits_before_processing_when_tool_missing(
+        self, tmp_path, monkeypatch
+    ):
+        source = tmp_path / "source"
+        (source / "Album").mkdir(parents=True)
+        monkeypatch.setattr("music_librarian.exporter.shutil.which", lambda tool: None)
+
+        result = CliRunner().invoke(
+            cli,
+            ["export", str(source / "Album")],
+            env={
+                "MUSIC_SOURCE_ROOT": str(source),
+                "MUSIC_DEST_ROOT": str(tmp_path / "dest"),
+            },
+        )
+
+        assert result.exit_code == 1
+        assert "opusenc not found in PATH" in result.output
+        assert "Processing:" not in result.output

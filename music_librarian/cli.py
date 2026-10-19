@@ -6,6 +6,7 @@ from pathlib import Path
 import click
 
 from music_librarian.exporter import (
+    MissingTool,
     check_external_tools,
     process_directory,
     resolve_destination_path,
@@ -58,6 +59,8 @@ def export(source_directories, force, debug):
                 err=True,
             )
             sys.exit(1)
+
+    _require_external_tools()
 
     click.echo(f"Exporting {len(source_directories)} directories...")
     click.echo(f"Source root: {source_root}")
@@ -195,7 +198,7 @@ def import_command(sources, export_after, no_metadata):
         if not dest_root:
             click.echo("Error: MUSIC_DEST_ROOT environment variable not set", err=True)
             sys.exit(1)
-        check_external_tools()
+        _require_external_tools()
 
     imported = []
     with tempfile.TemporaryDirectory() as workdir:
@@ -242,6 +245,14 @@ def import_command(sources, export_after, no_metadata):
         click.echo(
             "The imports are complete; fix the problem and rerun export.", err=True
         )
+        sys.exit(1)
+
+
+def _require_external_tools():
+    try:
+        check_external_tools()
+    except MissingTool as e:
+        click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
 

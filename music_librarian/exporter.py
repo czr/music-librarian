@@ -3,11 +3,9 @@
 import os
 import shutil
 import subprocess
-import sys
 from importlib.resources import as_file, files
 from pathlib import Path
 
-import click
 
 from music_librarian.audio_processor import (
     build_opusenc_command,
@@ -77,18 +75,21 @@ def resolve_output_filename_for_type(input_filename, file_type):
     return get_output_filename(input_filename, file_type)
 
 
+class MissingTool(Exception):
+    """A required external tool isn't installed."""
+
+
 def check_external_tools():
     """Check that required external tools are available.
 
     Raises:
-        SystemExit: If any required tool is missing
+        MissingTool: If any required tool is missing
     """
     tools = ["opusenc", "rsgain"]
 
     for tool in tools:
         if not shutil.which(tool):
-            click.echo(f"Error: {tool} not found in PATH", err=True)
-            sys.exit(1)
+            raise MissingTool(f"{tool} not found in PATH")
 
 
 def _rsgain_preset_ref():

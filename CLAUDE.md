@@ -40,7 +40,7 @@ music-librarian --help
 
 Entry point: `music-librarian = "music_librarian.cli:cli"` in `pyproject.toml`.
 
-- `cli.py`: Click commands (`import`, `export`, `extract-metadata`) and their output. Only this layer prints or exits.
+- `cli.py`: Click commands (`import`, `export`, `extract-metadata`) and their output. Other modules raise exceptions; only this layer exits.
 - `importer.py`: `import` — unpack zips or folders, name `Artist/Album` from tags, stage and rename into `MUSIC_SOURCE_ROOT`.
 - `exporter.py`: `export` — transcode/copy into `MUSIC_DEST_ROOT`, cover art, ReplayGain via rsgain.
 - `extractor.py`: `extract-metadata` — generate `metadata.txt` from existing tags.
