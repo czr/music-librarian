@@ -1,17 +1,57 @@
 """Tests for the import command."""
 
+import functools
+import shutil
+import subprocess
 import unicodedata
 import zipfile
 
 import pytest
+from mutagen.flac import FLAC
 
 from music_librarian.importer import (
     ImportFailed,
     find_matching_entry,
     folder_name_for,
     is_clutter,
+    read_album_identity,
     unpack,
 )
+
+
+@functools.cache
+def _silent_flac_bytes():
+    """A short silent FLAC, generated once and reused as raw material."""
+    result = subprocess.run(
+        [
+            "ffmpeg",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-t",
+            "0.1",
+            "-c:a",
+            "flac",
+            "-f",
+            "flac",
+            "-",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    return result.stdout
+
+
+def make_flac(path, **tags):
+    """Create a silent FLAC at `path` with the given tags (e.g. album="X")."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(_silent_flac_bytes())
+    audio = FLAC(path)
+    for key, value in tags.items():
+        audio[key.upper()] = value
+    audio.save()
+    return path
 
 
 def make_zip(path, members):
@@ -209,3 +249,91 @@ class TestUnpack:
 
         with pytest.raises(ImportFailed, match="could not read zip"):
             unpack(source, tmp_path)
+
+
+class TestReadAlbumIdentity:
+    def test_uses_albumartist_and_album(self, tmp_path):
+        make_flac(
+            tmp_path / "01.flac",
+            artist="Arcana feat. Someone",
+            albumartist="Arcana",
+            album="Magna Silentia",
+        )
+
+        assert read_album_identity(tmp_path) == ("Arcana", "Magna Silentia")
+
+    def test_falls_back_to_artist(self, tmp_path):
+        make_flac(tmp_path / "01.flac", artist="Arcana", album="Magna Silentia")
+
+        assert read_album_identity(tmp_path) == ("Arcana", "Magna Silentia")
+
+    def test_all_tracks_agreeing_is_fine(self, tmp_path):
+        for n in (1, 2, 3):
+            make_flac(
+                tmp_path / f"0{n}.flac",
+                artist="Desiderii Marginis",
+                albumartist="Desiderii Marginis",
+                album="Consecrare/Via Peregrinus",
+            )
+
+        assert read_album_identity(tmp_path) == (
+            "Desiderii Marginis",
+            "Consecrare/Via Peregrinus",
+        )
+
+    def test_tracks_in_disc_subfolders_are_read(self, tmp_path):
+        make_flac(tmp_path / "Disc 1" / "01.flac", artist="A", album="B")
+        make_flac(tmp_path / "Disc 2" / "01.flac", artist="A", album="B")
+
+        assert read_album_identity(tmp_path) == ("A", "B")
+
+    def test_non_audio_files_are_ignored(self, tmp_path):
+        make_flac(tmp_path / "01.flac", artist="A", album="B")
+        (tmp_path / "cover.jpg").write_bytes(b"image")
+        (tmp_path / "booklet.pdf").write_bytes(b"pdf")
+
+        assert read_album_identity(tmp_path) == ("A", "B")
+
+    def test_clutter_is_ignored(self, tmp_path):
+        make_flac(tmp_path / "01.flac", artist="A", album="B")
+        (tmp_path / "._01.flac").write_bytes(b"resource fork")
+
+        assert read_album_identity(tmp_path) == ("A", "B")
+
+    def test_no_audio_fails(self, tmp_path):
+        (tmp_path / "cover.jpg").write_bytes(b"image")
+
+        with pytest.raises(ImportFailed, match="no audio files"):
+            read_album_identity(tmp_path)
+
+    def test_missing_artist_fails_naming_the_file(self, tmp_path):
+        make_flac(tmp_path / "01 Untagged.flac", album="B")
+
+        with pytest.raises(ImportFailed, match="01 Untagged.flac.*artist"):
+            read_album_identity(tmp_path)
+
+    def test_missing_album_fails_naming_the_file(self, tmp_path):
+        make_flac(tmp_path / "01 Untagged.flac", artist="A")
+
+        with pytest.raises(ImportFailed, match="01 Untagged.flac.*album"):
+            read_album_identity(tmp_path)
+
+    def test_disagreeing_artists_fail_listing_them(self, tmp_path):
+        make_flac(tmp_path / "01.flac", albumartist="Arcana", album="B")
+        make_flac(tmp_path / "02.flac", albumartist="Arcana & Friends", album="B")
+
+        with pytest.raises(ImportFailed, match="artist.*'Arcana'.*'Arcana & Friends'"):
+            read_album_identity(tmp_path)
+
+    def test_disagreeing_albums_fail_listing_them(self, tmp_path):
+        make_flac(tmp_path / "01.flac", artist="A", album="Thaw")
+        make_flac(tmp_path / "02.flac", artist="A", album="Strife")
+
+        with pytest.raises(ImportFailed, match="album.*'Strife'.*'Thaw'"):
+            read_album_identity(tmp_path)
+
+    def test_unreadable_audio_fails_naming_the_file(self, tmp_path):
+        (tmp_path / "01 Broken.flac").write_bytes(b"not really flac")
+
+        with pytest.raises(ImportFailed, match="01 Broken.flac"):
+            read_album_identity(tmp_path)

@@ -3,7 +3,10 @@
 import unicodedata
 import zipfile
 from pathlib import Path, PurePosixPath
-from typing import Optional
+from typing import List, Optional, Tuple
+
+from music_librarian.file_discovery import find_audio_files
+from music_librarian.metadata_handler import read_metadata_from_file
 
 
 class ImportFailed(Exception):
@@ -75,3 +78,46 @@ def unpack(source: Path, workdir: Path) -> Path:
         raise ImportFailed(f"{source}: could not read zip ({e})") from e
 
     return _content_root(workdir)
+
+
+def _audio_files(root: Path) -> List[Path]:
+    """Relative paths of the audio files under `root`, excluding clutter."""
+    return sorted(p for p in find_audio_files(root) if not is_clutter(p))
+
+
+def read_album_identity(root: Path) -> Tuple[str, str]:
+    """Read the (artist, album) shared by every audio file under `root`.
+
+    The artist is ALBUMARTIST, falling back to ARTIST.
+    """
+    audio_files = _audio_files(root)
+    if not audio_files:
+        raise ImportFailed("no audio files found")
+
+    artists = set()
+    albums = set()
+    for relative_path in audio_files:
+        try:
+            tags = read_metadata_from_file(str(root / relative_path))
+        except Exception as e:
+            raise ImportFailed(f"could not read tags from {relative_path}: {e}") from e
+
+        artist = tags.get("albumartist") or tags.get("artist")
+        album = tags.get("album")
+        if not artist:
+            raise ImportFailed(f"{relative_path} has no albumartist or artist tag")
+        if not album:
+            raise ImportFailed(f"{relative_path} has no album tag")
+        artists.add(artist)
+        albums.add(album)
+
+    if len(artists) > 1:
+        raise ImportFailed(f"tracks disagree on artist: {_quoted_list(artists)}")
+    if len(albums) > 1:
+        raise ImportFailed(f"tracks disagree on album: {_quoted_list(albums)}")
+
+    return artists.pop(), albums.pop()
+
+
+def _quoted_list(values) -> str:
+    return ", ".join(repr(v) for v in sorted(values))
