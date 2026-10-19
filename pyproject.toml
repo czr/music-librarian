@@ -25,6 +25,9 @@ CI = "https://github.com/czr/music-librarian/actions"
 [project.scripts]
 music-librarian = "music_librarian.cli:cli"
 
+[tool.setuptools.package-data]
+music_librarian = ["data/*.ini"]
+
 [project.optional-dependencies]
 test = ["pytest"]
 dev = ["black"]

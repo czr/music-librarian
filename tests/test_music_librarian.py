@@ -1081,10 +1081,11 @@ class TestReplayGainIntegration:
         from music_librarian.cli import build_rsgain_command
 
         directory = "/dest/album"
+        preset_path = "/some/preset.ini"
 
-        result = build_rsgain_command(directory)
+        result = build_rsgain_command(directory, preset_path)
 
-        expected = ["rsgain", "easy", "/dest/album"]
+        expected = ["rsgain", "easy", "-p", "/some/preset.ini", "/dest/album"]
 
         assert result == expected
 
@@ -1701,11 +1702,22 @@ class TestMixedFormatProcessing:
 
         # Test that rsgain can process directories with .opus, .mp3, .ogg, etc.
         directory = "/dest/album"
-        result = build_rsgain_command_for_mixed_formats(directory)
+        preset_path = "/some/preset.ini"
+        result = build_rsgain_command_for_mixed_formats(directory, preset_path)
 
-        # Should still use the same rsgain easy command
-        expected = ["rsgain", "easy", directory]
+        expected = ["rsgain", "easy", "-p", "/some/preset.ini", directory]
         assert result == expected
+
+    def test_rsgain_preset_bundled(self):
+        """Test that the bundled rsgain preset file exists and is readable."""
+        from importlib.resources import as_file
+        from music_librarian.cli import _rsgain_preset_ref
+
+        with as_file(_rsgain_preset_ref()) as preset_path:
+            assert preset_path.exists()
+            content = preset_path.read_text()
+            assert "[Global]" in content
+            assert "MidrangeFilter=true" in content
 
 
 class TestExtractMetadataCLI:

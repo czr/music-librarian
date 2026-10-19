@@ -3,6 +3,7 @@ import sys
 import subprocess
 import shutil
 import unicodedata
+from importlib.resources import as_file, files
 from pathlib import Path
 import click
 
@@ -450,29 +451,35 @@ def merge_metadata(album_metadata, file_metadata, filename, source_file_path=Non
     return result
 
 
-def build_rsgain_command(directory):
+def _rsgain_preset_ref():
+    """Return a Traversable reference to the bundled rsgain preset file."""
+    return files("music_librarian").joinpath("data/rsgain_preset.ini")
+
+
+def build_rsgain_command(directory, preset_path):
     """Build rsgain command for ReplayGain processing.
 
     Args:
         directory: Path to directory containing .opus files
+        preset_path: Path to rsgain preset file
 
     Returns:
         List of command arguments for subprocess
     """
-    return ["rsgain", "easy", directory]
+    return ["rsgain", "easy", "-p", str(preset_path), directory]
 
 
-def build_rsgain_command_for_mixed_formats(directory):
+def build_rsgain_command_for_mixed_formats(directory, preset_path):
     """Build rsgain command for ReplayGain processing of mixed audio formats.
 
     Args:
         directory: Path to directory containing mixed audio files
+        preset_path: Path to rsgain preset file
 
     Returns:
         List of command arguments for subprocess
     """
-    # rsgain can handle mixed formats in the same directory
-    return ["rsgain", "easy", directory]
+    return ["rsgain", "easy", "-p", str(preset_path), directory]
 
 
 def get_opus_quality():
@@ -700,9 +707,11 @@ def process_directory(source_dir, dest_dir, force=False, debug=False):
     # Run ReplayGain processing if files were processed
     if total_processed > 0:
         try:
-            rsgain_cmd = build_rsgain_command_for_mixed_formats(dest_dir)
-            # Actually run rsgain
-            subprocess.run(rsgain_cmd, check=True, capture_output=True)
+            with as_file(_rsgain_preset_ref()) as preset_path:
+                rsgain_cmd = build_rsgain_command_for_mixed_formats(
+                    dest_dir, preset_path
+                )
+                subprocess.run(rsgain_cmd, check=True, capture_output=True)
         except Exception as e:
             total_errors.append(f"Error running ReplayGain: {str(e)}")
 
