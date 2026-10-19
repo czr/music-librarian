@@ -412,7 +412,7 @@ class TestRunImport:
         )
         library, plan = self.plan_one(tmp_path, source)
 
-        destination = run_import(plan, library)
+        destination = run_import(plan, library, create_metadata=False)
 
         assert destination == library / "Arcana" / "Magna Silentia"
         assert list_tree(destination) == [
@@ -438,7 +438,7 @@ class TestRunImport:
         (source_dir / ".DS_Store").write_bytes(b"junk")
         library, plan = self.plan_one(tmp_path, source_dir)
 
-        destination = run_import(plan, library)
+        destination = run_import(plan, library, create_metadata=False)
 
         assert list_tree(source_dir) == [".DS_Store", "01.flac"]
         assert list_tree(destination) == ["01.flac"]
@@ -458,7 +458,7 @@ class TestRunImport:
         make_flac(source_dir / "Disc 2" / "01.flac", artist="A", album="B")
         library, plan = self.plan_one(tmp_path, source_dir)
 
-        destination = run_import(plan, library)
+        destination = run_import(plan, library, create_metadata=False)
 
         assert list_tree(destination) == ["Disc 1/01.flac", "Disc 2/01.flac"]
 
@@ -512,3 +512,60 @@ class TestRunImport:
             run_import(plan, library)
 
         assert list(library.iterdir()) == []
+
+
+class TestRunImportMetadata:
+    def plan_one(self, tmp_path, source):
+        library = tmp_path / "library"
+        library.mkdir(exist_ok=True)
+        [plan] = plan_imports([source], library, tmp_path / "work")
+        return library, plan
+
+    def test_metadata_txt_is_generated_from_tags(self, tmp_path):
+        source_dir = tmp_path / "download"
+        make_flac(
+            source_dir / "01 Det Stora Tysta.flac",
+            artist="Arcana",
+            album="Magna Silentia",
+            title="Det Stora Tysta",
+            tracknumber="1",
+        )
+        library, plan = self.plan_one(tmp_path, source_dir)
+
+        destination = run_import(plan, library)
+
+        content = (destination / "metadata.txt").read_text()
+        assert "title: Magna Silentia" in content
+        assert "artist: Arcana" in content
+        assert "file: 01 Det Stora Tysta.flac:" in content
+        assert "title: Det Stora Tysta" in content
+
+    def test_metadata_txt_is_generated_in_each_disc_folder(self, tmp_path):
+        source_dir = tmp_path / "download"
+        make_flac(source_dir / "Disc 1" / "01.flac", artist="A", album="B")
+        make_flac(source_dir / "Disc 2" / "01.flac", artist="A", album="B")
+        library, plan = self.plan_one(tmp_path, source_dir)
+
+        destination = run_import(plan, library)
+
+        assert (destination / "Disc 1" / "metadata.txt").exists()
+        assert (destination / "Disc 2" / "metadata.txt").exists()
+
+    def test_existing_metadata_txt_is_kept(self, tmp_path):
+        source_dir = tmp_path / "download"
+        make_flac(source_dir / "01.flac", artist="A", album="B")
+        (source_dir / "metadata.txt").write_text("title: My Own Title\n")
+        library, plan = self.plan_one(tmp_path, source_dir)
+
+        destination = run_import(plan, library)
+
+        assert (destination / "metadata.txt").read_text() == "title: My Own Title\n"
+
+    def test_metadata_txt_can_be_skipped(self, tmp_path):
+        source_dir = tmp_path / "download"
+        make_flac(source_dir / "01.flac", artist="A", album="B")
+        library, plan = self.plan_one(tmp_path, source_dir)
+
+        destination = run_import(plan, library, create_metadata=False)
+
+        assert list_tree(destination) == ["01.flac"]

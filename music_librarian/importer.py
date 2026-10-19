@@ -211,11 +211,26 @@ def _ignore_clutter(directory, names):
     return [name for name in names if is_clutter(name)]
 
 
-def run_import(plan: ImportPlan, library_root: Path) -> Path:
+def _create_metadata_files(album_dir: Path) -> None:
+    """Generate metadata.txt wherever there's audio, keeping any that exist."""
+    # Imported here because the CLI module imports this one.
+    from music_librarian.cli import extract_metadata_from_directory
+
+    result = extract_metadata_from_directory(album_dir, force=False)
+    if result["errors"]:
+        raise ImportFailed(
+            "could not generate metadata.txt: " + "; ".join(result["errors"])
+        )
+
+
+def run_import(
+    plan: ImportPlan, library_root: Path, create_metadata: bool = True
+) -> Path:
     """Copy a planned album into the library, and return where it landed.
 
     The album is assembled in a hidden staging directory on the same volume,
-    then renamed into place, so it appears complete or not at all.
+    with its metadata.txt files, then renamed into place, so it appears
+    complete or not at all.
     """
     artist_dir = library_root / plan.artist_folder
     created_artist_dir = not artist_dir.exists()
@@ -225,6 +240,8 @@ def run_import(plan: ImportPlan, library_root: Path) -> Path:
     try:
         staged_album = staging / plan.album_folder
         shutil.copytree(plan.content_root, staged_album, ignore=_ignore_clutter)
+        if create_metadata:
+            _create_metadata_files(staged_album)
 
         artist_dir.mkdir(exist_ok=True)
         # Checked again because the library may have changed since planning,
