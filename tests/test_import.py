@@ -703,7 +703,7 @@ class TestImportCLI:
         library = tmp_path / "library"
         library.mkdir()
         source = make_album_zip(tmp_path / "a.zip", "A", "B", ["01.flac"])
-        monkeypatch.setattr("music_librarian.cli.shutil.which", lambda tool: None)
+        monkeypatch.setattr("music_librarian.exporter.shutil.which", lambda tool: None)
 
         result = run_cli(
             ["import", "--export", str(source)],

@@ -137,7 +137,7 @@ class TestPathResolution:
 
     def test_resolve_destination_path_single_level(self):
         """Test resolving destination path for single level directory."""
-        from music_librarian.cli import resolve_destination_path
+        from music_librarian.exporter import resolve_destination_path
 
         source_root = "/media/external/flac"
         dest_root = "/home/user/music/opus"
@@ -149,7 +149,7 @@ class TestPathResolution:
 
     def test_resolve_destination_path_nested(self):
         """Test resolving destination path for nested directories."""
-        from music_librarian.cli import resolve_destination_path
+        from music_librarian.exporter import resolve_destination_path
 
         source_root = "/media/external/flac"
         dest_root = "/home/user/music/opus"
@@ -161,7 +161,7 @@ class TestPathResolution:
 
     def test_resolve_destination_path_exact_root(self):
         """Test resolving destination path when source is exactly the root."""
-        from music_librarian.cli import resolve_destination_path
+        from music_librarian.exporter import resolve_destination_path
 
         source_root = "/media/external/flac"
         dest_root = "/home/user/music/opus"
@@ -173,7 +173,7 @@ class TestPathResolution:
 
     def test_resolve_destination_path_with_trailing_slashes(self):
         """Test path resolution handles trailing slashes correctly."""
-        from music_librarian.cli import resolve_destination_path
+        from music_librarian.exporter import resolve_destination_path
 
         source_root = "/media/external/flac/"
         dest_root = "/home/user/music/opus/"
@@ -185,7 +185,7 @@ class TestPathResolution:
 
     def test_resolve_output_filename(self):
         """Test converting input filenames to output .opus filenames."""
-        from music_librarian.cli import resolve_output_filename
+        from music_librarian.exporter import resolve_output_filename
 
         test_cases = [
             ("track.flac", "track.opus"),
@@ -567,7 +567,7 @@ class TestOpusencIntegration:
 
     def test_build_opusenc_command_basic(self):
         """Test building basic opusenc command without metadata overrides."""
-        from music_librarian.cli import build_opusenc_command
+        from music_librarian.audio_processor import build_opusenc_command
 
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
@@ -585,7 +585,7 @@ class TestOpusencIntegration:
 
     def test_build_opusenc_command_with_quality(self):
         """Test building opusenc command with quality setting."""
-        from music_librarian.cli import build_opusenc_command
+        from music_librarian.audio_processor import build_opusenc_command
 
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
@@ -606,7 +606,7 @@ class TestOpusencIntegration:
 
     def test_build_opusenc_command_with_metadata(self):
         """Test building opusenc command with metadata overrides."""
-        from music_librarian.cli import build_opusenc_command
+        from music_librarian.audio_processor import build_opusenc_command
 
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
@@ -641,7 +641,7 @@ class TestOpusencIntegration:
 
     def test_build_opusenc_command_with_quality_and_metadata(self):
         """Test building opusenc command with both quality and metadata."""
-        from music_librarian.cli import build_opusenc_command
+        from music_librarian.audio_processor import build_opusenc_command
 
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
@@ -669,7 +669,7 @@ class TestOpusencIntegration:
 
     def test_build_opusenc_command_empty_metadata_values(self):
         """Test building opusenc command with empty metadata values."""
-        from music_librarian.cli import build_opusenc_command
+        from music_librarian.audio_processor import build_opusenc_command
 
         input_file = "/source/track.flac"
         output_file = "/dest/track.opus"
@@ -690,7 +690,7 @@ class TestOpusencIntegration:
 
     def test_check_opusenc_available(self):
         """Test checking if opusenc is available in PATH."""
-        from music_librarian.cli import check_external_tools
+        from music_librarian.exporter import check_external_tools
 
         # Should not raise an exception since opusenc is available
         check_external_tools()
@@ -1078,7 +1078,7 @@ class TestReplayGainIntegration:
 
     def test_build_rsgain_command(self):
         """Test building rsgain command for directory processing."""
-        from music_librarian.cli import build_rsgain_command
+        from music_librarian.exporter import build_rsgain_command
 
         directory = "/dest/album"
         preset_path = "/some/preset.ini"
@@ -1091,7 +1091,7 @@ class TestReplayGainIntegration:
 
     def test_check_rsgain_available(self):
         """Test checking if rsgain is available in PATH."""
-        from music_librarian.cli import check_external_tools
+        from music_librarian.exporter import check_external_tools
 
         # Should not raise an exception since rsgain is available
         check_external_tools()
@@ -1136,7 +1136,7 @@ class TestExportWorkflow:
 
     def test_process_directory_creates_nested_directories(self):
         """Test that processing creates nested Artist/Album directory structure."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create source directory with nested artist/album structure
@@ -1197,7 +1197,7 @@ class TestExportWorkflow:
 
     def test_process_directory_with_flac_file(self):
         """Test processing a directory with actual FLAC files and cover art."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create source and destination directories
@@ -1234,7 +1234,7 @@ class TestExportWorkflow:
 
     def test_process_directory_with_metadata(self):
         """Test processing with metadata.txt file."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create source and destination directories
@@ -1272,7 +1272,7 @@ track number: 01
 
     def test_process_directory_skip_existing(self):
         """Test that existing files are skipped when force=False."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create source and destination directories
@@ -1305,7 +1305,7 @@ track number: 01
 
     def test_process_directory_force_overwrite(self):
         """Test that existing files are overwritten when force=True."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create source and destination directories
@@ -1339,7 +1339,7 @@ track number: 01
 
     def test_get_opus_quality_from_env(self):
         """Test reading OPUS_QUALITY from environment variable."""
-        from music_librarian.cli import get_opus_quality
+        from music_librarian.exporter import get_opus_quality
 
         # Test default quality when env var not set
         old_value = os.environ.get("OPUS_QUALITY")
@@ -1656,7 +1656,7 @@ class TestMixedFormatProcessing:
 
     def test_process_mixed_directory_lossless_and_lossy(self):
         """Test processing directory with both lossless and lossy files."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
 
         # This will test the updated process_directory function
         # that handles both transcoding and copying
@@ -1683,7 +1683,7 @@ class TestMixedFormatProcessing:
 
     def test_resolve_output_filename_preserves_lossy_extensions(self):
         """Test that lossy files keep their original extensions."""
-        from music_librarian.cli import resolve_output_filename_for_type
+        from music_librarian.exporter import resolve_output_filename_for_type
 
         # Test that lossless files get .opus extension
         assert (
@@ -1698,7 +1698,7 @@ class TestMixedFormatProcessing:
 
     def test_rsgain_processes_mixed_audio_files(self):
         """Test that ReplayGain processing handles mixed output formats."""
-        from music_librarian.cli import build_rsgain_command_for_mixed_formats
+        from music_librarian.exporter import build_rsgain_command_for_mixed_formats
 
         # Test that rsgain can process directories with .opus, .mp3, .ogg, etc.
         directory = "/dest/album"
@@ -1711,7 +1711,7 @@ class TestMixedFormatProcessing:
     def test_rsgain_preset_bundled(self):
         """Test that the bundled rsgain preset file exists and is readable."""
         from importlib.resources import as_file
-        from music_librarian.cli import _rsgain_preset_ref
+        from music_librarian.exporter import _rsgain_preset_ref
 
         with as_file(_rsgain_preset_ref()) as preset_path:
             assert preset_path.exists()
@@ -2206,7 +2206,7 @@ class TestCoverMetadataHandling:
 
     def test_export_copies_and_renames_cover_from_metadata(self):
         """Test that export copies and renames cover file specified in metadata."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2259,7 +2259,7 @@ title: Track 1
 
     def test_export_handles_different_cover_extensions(self):
         """Test that export preserves file extension when renaming cover."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2307,7 +2307,7 @@ title: Track 1
 
     def test_export_skips_cover_when_not_specified(self):
         """Test that export uses existing cover art logic when no cover specified in metadata."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2353,7 +2353,7 @@ title: Track 1
 
     def test_export_handles_missing_cover_file_gracefully(self):
         """Test that export handles missing cover file gracefully."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2430,7 +2430,7 @@ class TestNestedMetadataHandling:
 
     def test_process_nested_albums_with_per_directory_metadata(self):
         """Test processing nested album directories with individual metadata.txt files."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2506,7 +2506,7 @@ track number: 01
 
     def test_mixed_metadata_scenarios(self):
         """Test processing with mix of top-level and per-directory metadata.txt files."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os
@@ -2572,7 +2572,7 @@ track number: 01
 
     def test_no_metadata_files_in_nested_structure(self):
         """Test processing nested structure with no metadata.txt files (should use source metadata)."""
-        from music_librarian.cli import process_directory
+        from music_librarian.exporter import process_directory
         from tempfile import TemporaryDirectory
         from pathlib import Path
         import os

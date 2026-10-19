@@ -54,8 +54,6 @@ def transcode_with_metadata(
     Raises:
         subprocess.CalledProcessError: If transcoding fails
     """
-    from music_librarian.cli import build_opusenc_command
-
     # Ensure destination directory exists
     dest_dir = os.path.dirname(dest_path)
     os.makedirs(dest_dir, exist_ok=True)
@@ -118,3 +116,54 @@ def process_audio_file(
 
     except Exception as e:
         return {"action": "failed", "error": str(e)}
+
+
+def build_opusenc_command(input_file, output_file, quality=None, metadata=None):
+    """Build opusenc command with optional quality and metadata.
+
+    Args:
+        input_file: Path to input audio file
+        output_file: Path to output .opus file
+        quality: Optional bitrate for encoding
+        metadata: Optional dict of metadata tags
+
+    Returns:
+        List of command arguments for subprocess
+    """
+    cmd = ["opusenc"]
+
+    # Add quality setting if specified
+    if quality:
+        cmd.extend(["--bitrate", str(quality)])
+
+    # Discard existing metadata from source file to ensure clean replacement
+    cmd.append("--discard-comments")
+
+    # Add metadata using specific opusenc options
+    if metadata:
+        for key, value in metadata.items():
+            # Skip empty values and cover field
+            if not value or key == "cover":
+                continue
+
+            # Use specific opusenc options for known fields
+            if key == "title":
+                cmd.extend(["--title", value])
+            elif key == "artist":
+                cmd.extend(["--artist", value])
+            elif key == "album":
+                cmd.extend(["--album", value])
+            elif key == "date":
+                cmd.extend(["--date", value])
+            elif key == "track number":
+                cmd.extend(["--tracknumber", value])
+            elif key == "albumartist":
+                # Use comment for albumartist since there's no specific option
+                cmd.extend(["--comment", f"ALBUMARTIST={value}"])
+            else:
+                # Fall back to comment for other fields
+                opus_key = key.upper().replace(" ", "")
+                cmd.extend(["--comment", f"{opus_key}={value}"])
+
+    cmd.extend([input_file, output_file])
+    return cmd
